@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/vitalvas/gokit/xconfig"
@@ -104,14 +105,26 @@ func (c *Config) alpnProtocol() string {
 		return ""
 	}
 
+	if !isAWSIoTEndpoint(u.Hostname()) {
+		return ""
+	}
+
 	switch u.Scheme {
 	case "tls", "ssl", "tcps":
 		return "x-amzn-mqtt-ca"
-	case "wss":
-		return "http/1.1"
 	default:
 		return ""
 	}
+}
+
+func isAWSIoTEndpoint(host string) bool {
+	// matches: {id}.iot.{region}.amazonaws.com
+	parts := strings.Split(host, ".")
+	if len(parts) < 4 {
+		return false
+	}
+
+	return parts[1] == "iot" && strings.HasSuffix(host, ".amazonaws.com")
 }
 
 func (c *Config) ConnectTimeout() time.Duration {

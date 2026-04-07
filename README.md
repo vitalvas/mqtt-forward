@@ -287,19 +287,30 @@ All settings are configured via environment variables:
 | `MQTT_TLS_KEY` | Path to TLS client private key | (empty) |
 | `MQTT_TLS_CA` | Path to TLS CA certificate | (empty) |
 
-When the broker port is 443, the ALPN protocol is set automatically based on the URL scheme:
+When connecting to AWS IoT Core (`*.iot.*.amazonaws.com`) on port 443, the ALPN protocol is set automatically based on the URL scheme:
 
-| Scheme | ALPN | Protocol |
-|--------|------|----------|
-| `tls://`, `ssl://`, `tcps://` | `x-amzn-mqtt-ca` | MQTT over TLS |
-| `wss://` | `http/1.1` | MQTT over WebSocket Secure |
+For `tls://`, `ssl://`, or `tcps://` schemes, ALPN is set to `x-amzn-mqtt-ca`. WebSocket (`wss://`) does not need ALPN.
 
 ### AWS IoT Core Example
+
+MQTT over TLS:
 
 ```sh
 curl -o AmazonRootCA1.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
 
 export MQTT_BROKER=tls://ENDPOINT.iot.REGION.amazonaws.com:443
+export MQTT_TLS_CERT=/path/to/device.cert.pem
+export MQTT_TLS_KEY=/path/to/device.private.key
+export MQTT_TLS_CA=/path/to/AmazonRootCA1.pem
+export MQTT_DEVICE_ID=my-device
+
+mqtt-forward device
+```
+
+MQTT over WebSocket Secure:
+
+```sh
+export MQTT_BROKER=wss://ENDPOINT.iot.REGION.amazonaws.com:443/mqtt
 export MQTT_TLS_CERT=/path/to/device.cert.pem
 export MQTT_TLS_KEY=/path/to/device.private.key
 export MQTT_TLS_CA=/path/to/AmazonRootCA1.pem

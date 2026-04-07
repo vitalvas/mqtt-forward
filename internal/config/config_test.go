@@ -140,20 +140,20 @@ func TestConfig(t *testing.T) {
 		assert.Equal(t, []string{"x-amzn-mqtt-ca"}, tlsCfg.NextProtos)
 	})
 
-	t.Run("alpn_wss_port_443", func(t *testing.T) {
+	t.Run("no_alpn_wss_port_443", func(t *testing.T) {
 		tmpDir := t.TempDir()
 		caPath := filepath.Join(tmpDir, "ca.pem")
 		generateTestCA(t, caPath)
 
 		cfg := Config{
-			Broker:    "wss://endpoint.iot.region.amazonaws.com:443",
+			Broker:    "wss://endpoint.iot.region.amazonaws.com:443/mqtt",
 			TLSCA:     caPath,
 			KeepAlive: 60,
 		}
 
 		tlsCfg, err := cfg.buildTLSConfig()
 		require.NoError(t, err)
-		assert.Equal(t, []string{"http/1.1"}, tlsCfg.NextProtos)
+		assert.Nil(t, tlsCfg.NextProtos)
 	})
 
 	t.Run("no_alpn_port_8883", func(t *testing.T) {
@@ -163,6 +163,38 @@ func TestConfig(t *testing.T) {
 
 		cfg := Config{
 			Broker:    "tls://broker.example.com:8883",
+			TLSCA:     caPath,
+			KeepAlive: 60,
+		}
+
+		tlsCfg, err := cfg.buildTLSConfig()
+		require.NoError(t, err)
+		assert.Nil(t, tlsCfg.NextProtos)
+	})
+
+	t.Run("no_alpn_non_aws_port_443", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		caPath := filepath.Join(tmpDir, "ca.pem")
+		generateTestCA(t, caPath)
+
+		cfg := Config{
+			Broker:    "tls://broker.example.com:443",
+			TLSCA:     caPath,
+			KeepAlive: 60,
+		}
+
+		tlsCfg, err := cfg.buildTLSConfig()
+		require.NoError(t, err)
+		assert.Nil(t, tlsCfg.NextProtos)
+	})
+
+	t.Run("no_alpn_aws_nlb_port_443", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		caPath := filepath.Join(tmpDir, "ca.pem")
+		generateTestCA(t, caPath)
+
+		cfg := Config{
+			Broker:    "tls://my-nlb.elb.us-east-1.amazonaws.com:443",
 			TLSCA:     caPath,
 			KeepAlive: 60,
 		}

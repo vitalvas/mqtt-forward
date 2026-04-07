@@ -3,7 +3,6 @@ package tunnel
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"syscall"
 	"unsafe"
 )
@@ -30,7 +29,7 @@ func ptsName(ptmx *os.File) (string, error) {
 		return "", fmt.Errorf("TIOCGPTN: %w", errno)
 	}
 
-	return "/dev/pts/" + strconv.FormatUint(uint64(n), 10), nil
+	return fmt.Sprintf("/dev/pts/%d", n), nil
 }
 
 func unlockPT(ptmx *os.File) error {
