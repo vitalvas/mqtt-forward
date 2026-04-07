@@ -7,8 +7,10 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/vitalvas/gokit v0.30.0
+	github.com/vitalvas/kasper v0.12.0
 	github.com/vitalvas/mqttv5 v0.5.0
 	golang.org/x/term v0.41.0
+	google.golang.org/protobuf v1.36.11
 )
 
 require (
@@ -17,7 +19,6 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/quic-go/quic-go v0.59.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
-	github.com/vitalvas/kasper v0.5.0 // indirect
 	golang.org/x/crypto v0.49.0 // indirect
 	golang.org/x/net v0.52.0 // indirect
 	golang.org/x/sys v0.42.0 // indirect

@@ -87,6 +87,10 @@ func newDeviceCmd() *cobra.Command {
 
 			dev = device.New(transport, cfg.DeviceID, logger)
 
+			if cfg.IsAWSIoT() {
+				dev.SetTunnelServices(cfg.ParseTunnelServices())
+			}
+
 			group, _ := xcmd.ErrGroup(cmd.Context())
 
 			group.Go(func(ctx context.Context) error {

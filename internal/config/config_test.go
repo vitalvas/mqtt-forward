@@ -248,6 +248,103 @@ func TestConfig(t *testing.T) {
 
 		assert.Equal(t, 10*time.Second, cfg.ConnectTimeout())
 	})
+
+}
+
+func TestParseTunnelServices(t *testing.T) {
+	t.Run("default_value", func(t *testing.T) {
+		cfg := Config{
+			TunnelServices: "SSH=localhost:22",
+		}
+
+		services := cfg.ParseTunnelServices()
+		assert.Equal(t, map[string]string{"SSH": "localhost:22"}, services)
+	})
+
+	t.Run("multiple_services", func(t *testing.T) {
+		cfg := Config{
+			TunnelServices: "SSH=localhost:22,HTTP=localhost:80",
+		}
+
+		services := cfg.ParseTunnelServices()
+		assert.Equal(t, map[string]string{
+			"SSH":  "localhost:22",
+			"HTTP": "localhost:80",
+		}, services)
+	})
+
+	t.Run("empty_string", func(t *testing.T) {
+		cfg := Config{
+			TunnelServices: "",
+		}
+
+		services := cfg.ParseTunnelServices()
+		assert.Empty(t, services)
+	})
+
+	t.Run("single_service", func(t *testing.T) {
+		cfg := Config{
+			TunnelServices: "MQTT=localhost:1883",
+		}
+
+		services := cfg.ParseTunnelServices()
+		assert.Equal(t, map[string]string{"MQTT": "localhost:1883"}, services)
+	})
+
+	t.Run("with_spaces", func(t *testing.T) {
+		cfg := Config{
+			TunnelServices: " SSH = localhost:22 , HTTP = localhost:80 ",
+		}
+
+		services := cfg.ParseTunnelServices()
+		assert.Equal(t, map[string]string{
+			"SSH":  "localhost:22",
+			"HTTP": "localhost:80",
+		}, services)
+	})
+
+	t.Run("invalid_entry_no_equals", func(t *testing.T) {
+		cfg := Config{
+			TunnelServices: "SSH=localhost:22,BADENTRY",
+		}
+
+		services := cfg.ParseTunnelServices()
+		assert.Equal(t, map[string]string{"SSH": "localhost:22"}, services)
+	})
+}
+
+func TestIsAWSIoT(t *testing.T) {
+	t.Run("aws_iot_endpoint", func(t *testing.T) {
+		cfg := Config{
+			Broker: "tls://abcdefg.iot.us-east-1.amazonaws.com:8883",
+		}
+
+		assert.True(t, cfg.IsAWSIoT())
+	})
+
+	t.Run("non_aws_endpoint", func(t *testing.T) {
+		cfg := Config{
+			Broker: "tcp://broker.example.com:1883",
+		}
+
+		assert.False(t, cfg.IsAWSIoT())
+	})
+
+	t.Run("invalid_url", func(t *testing.T) {
+		cfg := Config{
+			Broker: "://invalid",
+		}
+
+		assert.False(t, cfg.IsAWSIoT())
+	})
+
+	t.Run("aws_non_iot_endpoint", func(t *testing.T) {
+		cfg := Config{
+			Broker: "tls://my-nlb.elb.us-east-1.amazonaws.com:443",
+		}
+
+		assert.False(t, cfg.IsAWSIoT())
+	})
 }
 
 func generateTestCA(t *testing.T, path string) {
