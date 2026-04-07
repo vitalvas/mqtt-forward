@@ -33,7 +33,7 @@ func newMockTransport(clientID string) *mockTransport {
 	}
 }
 
-func (m *mockTransport) Publish(topic string, payload []byte) error { return nil }
+func (m *mockTransport) Publish(msg tunnel.PubMessage) error { return nil }
 
 func (m *mockTransport) Subscribe(filter string, handler tunnel.MessageHandler) error {
 	m.mu.Lock()
@@ -86,7 +86,7 @@ func setMockConnector(t *testing.T) {
 		connectTransport = original
 	})
 
-	connectTransport = func(c *config.Config) (tunnel.Transport, error) {
+	connectTransport = func(c *config.Config, _ *slog.Logger) (tunnel.Transport, error) {
 		return newMockTransport(c.ClientID), nil
 	}
 }
@@ -99,7 +99,7 @@ func setFailingConnector(t *testing.T) {
 		connectTransport = original
 	})
 
-	connectTransport = func(c *config.Config) (tunnel.Transport, error) {
+	connectTransport = func(c *config.Config, _ *slog.Logger) (tunnel.Transport, error) {
 		return nil, fmt.Errorf("connection refused")
 	}
 }
@@ -144,7 +144,7 @@ func TestCommands(t *testing.T) {
 
 		var names []string
 		for _, sub := range cmd.Commands() {
-			names = append(names, sub.Use)
+			names = append(names, sub.Name())
 		}
 
 		assert.Contains(t, names, "tcp")
@@ -195,12 +195,9 @@ func TestCommands(t *testing.T) {
 	t.Run("exec_cmd_flags", func(t *testing.T) {
 		cmd := newClientExecCmd()
 
-		assert.Equal(t, "exec", cmd.Use)
+		assert.Contains(t, cmd.Use, "exec")
 
 		f := cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
-
-		f = cmd.Flags().Lookup("command")
 		require.NotNil(t, f)
 	})
 
@@ -297,7 +294,7 @@ func TestCommandsRunE(t *testing.T) {
 		setFailingConnector(t)
 
 		cmd := newClientExecCmd()
-		cmd.SetArgs([]string{"--device", "dev1", "--command", "ls"})
+		cmd.SetArgs([]string{"--device", "dev1", "--", "ls"})
 
 		err := cmd.Execute()
 		assert.Error(t, err)
@@ -334,7 +331,7 @@ func TestCommandsRunE(t *testing.T) {
 
 		cmd := newClientExecCmd()
 		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--command", "echo hi"})
+		cmd.SetArgs([]string{"--device", "dev1", "--", "echo", "hi"})
 
 		err := cmd.Execute()
 		assert.Error(t, err)

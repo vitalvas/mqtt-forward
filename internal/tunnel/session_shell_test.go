@@ -68,6 +68,45 @@ func TestShellSession(t *testing.T) {
 		require.NoError(t, sess.Close())
 	})
 
+	t.Run("handle_data_and_flow_control", func(t *testing.T) {
+		mt := NewMockTransport("device-1")
+		sess := NewShellSession("sess-fc", mt, OutControlTopic("device-1"), OutDataTopic("device-1", "sess-fc"), testLogger())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		require.NoError(t, sess.Start(ctx))
+
+		// Send enough data to trigger ack (FlowControlWindow / 4 = 64KB)
+		chunk := make([]byte, 1024)
+		for i := range 70 {
+			sess.HandleData(uint32(i), chunk)
+		}
+
+		sess.UpdateFlowControl(1024)
+
+		time.Sleep(200 * time.Millisecond)
+
+		require.NoError(t, sess.Close())
+	})
+
+	t.Run("handle_data_error", func(t *testing.T) {
+		mt := NewMockTransport("device-1")
+		sess := NewShellSession("sess-hde", mt, OutControlTopic("device-1"), OutDataTopic("device-1", "sess-hde"), testLogger())
+
+		// Insert into closed reorder buffer triggers error log
+		sess.Close()
+		sess.HandleData(0, []byte("data"))
+	})
+
+	t.Run("resize_before_start", func(t *testing.T) {
+		mt := NewMockTransport("device-1")
+		sess := NewShellSession("sess-rs", mt, OutControlTopic("device-1"), OutDataTopic("device-1", "sess-rs"), testLogger())
+
+		err := sess.Resize(80, 24)
+		assert.NoError(t, err)
+	})
+
 	t.Run("open_pty", func(t *testing.T) {
 		ptmx, err := openPTY()
 		require.NoError(t, err)

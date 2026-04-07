@@ -151,7 +151,12 @@ func (s *TCPSession) sendAck(bytes uint64) {
 		return
 	}
 
-	s.transport.Publish(s.controlTopic, data)
+	s.transport.Publish(PubMessage{
+		Topic:       s.controlTopic,
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	})
 }
 
 func (s *TCPSession) sendCloseMsg() {
@@ -165,5 +170,10 @@ func (s *TCPSession) sendCloseMsg() {
 		return
 	}
 
-	s.transport.Publish(s.controlTopic, data)
+	s.transport.Publish(PubMessage{
+		Topic:       s.controlTopic,
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	})
 }

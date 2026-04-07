@@ -77,7 +77,7 @@ func (c *Client) RunTCP(ctx context.Context, listenAddr, target string) error {
 	}
 	defer listener.Close()
 
-	c.logger.Info("tcp forwarder listening", "addr", listener.Addr().String(), "target", target, "device", c.deviceID)
+	c.logger.Debug("tcp forwarder listening", "addr", listener.Addr().String(), "target", target, "device", c.deviceID)
 
 	go func() {
 		<-ctx.Done()
@@ -149,7 +149,7 @@ func (c *Client) handleTCPConn(ctx context.Context, conn net.Conn, target string
 		return
 	}
 
-	c.logger.Info("tcp session started", "session_id", sessionID)
+	c.logger.Debug("tcp session started", "session_id", sessionID)
 }
 
 func (c *Client) RunSOCKS5(ctx context.Context, listenAddr string) error {
@@ -163,7 +163,7 @@ func (c *Client) RunSOCKS5(ctx context.Context, listenAddr string) error {
 	}
 	defer listener.Close()
 
-	c.logger.Info("socks5 proxy listening", "addr", listener.Addr().String(), "device", c.deviceID)
+	c.logger.Debug("socks5 proxy listening", "addr", listener.Addr().String(), "device", c.deviceID)
 
 	go func() {
 		<-ctx.Done()
@@ -252,7 +252,7 @@ func (c *Client) handleSOCKS5Conn(ctx context.Context, conn net.Conn) {
 		return
 	}
 
-	c.logger.Info("socks5 session started", "session_id", sessionID, "target", target)
+	c.logger.Debug("socks5 session started", "session_id", sessionID, "target", target)
 }
 
 func (c *Client) RunExec(ctx context.Context, command string, stdout io.Writer) (int, error) {
@@ -276,10 +276,19 @@ func (c *Client) RunExec(ctx context.Context, command string, stdout io.Writer) 
 		return 1, err
 	}
 
+	closeCh := c.registerCloseCh(sessionID)
+	defer c.unregisterCloseCh(sessionID)
+
+	var timeoutSec int
+	if deadline, ok := ctx.Deadline(); ok {
+		timeoutSec = int(time.Until(deadline).Seconds())
+	}
+
 	ack, err := c.sendOpen(ctx, openRequest{
 		SessionID: sessionID,
 		Mode:      tunnel.SessionModeExec,
 		Command:   command,
+		Timeout:   timeoutSec,
 	})
 	if err != nil {
 		return 1, fmt.Errorf("open exec session: %w", err)
@@ -289,26 +298,52 @@ func (c *Client) RunExec(ctx context.Context, command string, stdout io.Writer) 
 		return 1, fmt.Errorf("device rejected exec session: %s", ack.Error)
 	}
 
-	closeCh := c.registerCloseCh(sessionID)
-	defer c.unregisterCloseCh(sessionID)
-
 	for {
 		select {
 		case <-ctx.Done():
-			return 1, ctx.Err()
-		case data := <-sess.DataCh():
-			stdout.Write(data)
-		case closeMsg := <-closeCh:
-			// Drain remaining data
+			c.sendClose(sessionID)
+
+			// Wait for device to send remaining output and close
+			drainTimeout := time.After(3 * time.Second)
 			for {
 				select {
 				case data := <-sess.DataCh():
 					stdout.Write(data)
-				default:
-					goto done
+				case closeMsg := <-closeCh:
+					drainDone := time.After(100 * time.Millisecond)
+				drainAfterClose:
+					for {
+						select {
+						case data := <-sess.DataCh():
+							stdout.Write(data)
+						case <-drainDone:
+							break drainAfterClose
+						}
+					}
+
+					if closeMsg.ExitCode != nil {
+						return *closeMsg.ExitCode, nil
+					}
+
+					return 0, nil
+				case <-drainTimeout:
+					return 130, nil
 				}
 			}
-		done:
+		case data := <-sess.DataCh():
+			stdout.Write(data)
+		case closeMsg := <-closeCh:
+			drainDone := time.After(500 * time.Millisecond)
+		drainNormal:
+			for {
+				select {
+				case data := <-sess.DataCh():
+					stdout.Write(data)
+				case <-drainDone:
+					break drainNormal
+				}
+			}
+
 			if closeMsg.ExitCode != nil {
 				return *closeMsg.ExitCode, nil
 			}
@@ -423,7 +458,13 @@ func (c *Client) sendPing(ctx context.Context, pingID string, ts time.Time) (tim
 	}
 
 	topic := tunnel.InControlTopic(c.deviceID)
-	if err := c.transport.Publish(topic, data); err != nil {
+	if err := c.transport.Publish(tunnel.PubMessage{
+		Topic:         topic,
+		Payload:       data,
+		QoS:           0,
+		ContentType:   "application/json",
+		ResponseTopic: tunnel.OutControlTopic(c.deviceID),
+	}); err != nil {
 		return 0, err
 	}
 
@@ -471,12 +512,12 @@ func (c *Client) handleControl(topic string, payload []byte) {
 			case ch <- msg:
 			default:
 			}
-		}
-
-		sess, err := c.manager.Get(msg.SessionID)
-		if err == nil {
-			sess.Close()
-			c.manager.Remove(msg.SessionID)
+		} else {
+			sess, err := c.manager.Get(msg.SessionID)
+			if err == nil {
+				sess.Close()
+				c.manager.Remove(msg.SessionID)
+			}
 		}
 
 	case "ack":
@@ -523,6 +564,7 @@ type openRequest struct {
 	Command   string
 	Cols      uint16
 	Rows      uint16
+	Timeout   int
 }
 
 func (c *Client) sendOpen(ctx context.Context, req openRequest) (tunnel.ControlMessage, error) {
@@ -546,6 +588,7 @@ func (c *Client) sendOpen(ctx context.Context, req openRequest) (tunnel.ControlM
 		Command:   req.Command,
 		Cols:      req.Cols,
 		Rows:      req.Rows,
+		Timeout:   req.Timeout,
 	}
 
 	data, err := json.Marshal(msg)
@@ -554,7 +597,13 @@ func (c *Client) sendOpen(ctx context.Context, req openRequest) (tunnel.ControlM
 	}
 
 	topic := tunnel.InControlTopic(c.deviceID)
-	if err := c.transport.Publish(topic, data); err != nil {
+	if err := c.transport.Publish(tunnel.PubMessage{
+		Topic:         topic,
+		Payload:       data,
+		QoS:           1,
+		ContentType:   "application/json",
+		ResponseTopic: tunnel.OutControlTopic(c.deviceID),
+	}); err != nil {
 		return tunnel.ControlMessage{}, err
 	}
 
@@ -597,7 +646,12 @@ func (c *Client) sendResize(sessionID string, cols, rows uint16) error {
 		return err
 	}
 
-	return c.transport.Publish(tunnel.InControlTopic(c.deviceID), data)
+	return c.transport.Publish(tunnel.PubMessage{
+		Topic:       tunnel.InControlTopic(c.deviceID),
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	})
 }
 
 func (c *Client) sendClose(sessionID string) error {
@@ -611,7 +665,12 @@ func (c *Client) sendClose(sessionID string) error {
 		return err
 	}
 
-	return c.transport.Publish(tunnel.InControlTopic(c.deviceID), data)
+	return c.transport.Publish(tunnel.PubMessage{
+		Topic:       tunnel.InControlTopic(c.deviceID),
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	})
 }
 
 func getTermSize() (cols, rows uint16) {

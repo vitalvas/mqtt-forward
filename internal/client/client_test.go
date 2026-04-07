@@ -39,15 +39,12 @@ func newMockTransport(clientID string) *mockTransport {
 	}
 }
 
-func (m *mockTransport) Publish(topic string, payload []byte) error {
+func (m *mockTransport) Publish(msg tunnel.PubMessage) error {
 	m.mu.Lock()
-
-	p := make([]byte, len(payload))
-	copy(p, payload)
-	m.published = append(m.published, pubMsg{Topic: topic, Payload: p})
-
+	p := make([]byte, len(msg.Payload))
+	copy(p, msg.Payload)
+	m.published = append(m.published, pubMsg{Topic: msg.Topic, Payload: p})
 	m.mu.Unlock()
-
 	return nil
 }
 
@@ -887,11 +884,23 @@ func TestClientExecContextTimeout(t *testing.T) {
 
 			time.Sleep(100 * time.Millisecond)
 			cancel()
+
+			time.Sleep(100 * time.Millisecond)
+
+			exitCode := 0
+			closeMsg := tunnel.ControlMessage{
+				Type:      tunnel.MessageTypeClose,
+				SessionID: openMsg.SessionID,
+				ExitCode:  &exitCode,
+			}
+
+			closeData, _ := json.Marshal(closeMsg)
+			mt.deliver(tunnel.OutControlTopic("device-1"), closeData)
 		}()
 
 		exitCode, err := c.RunExec(ctx, "echo test", &buf)
-		assert.Error(t, err)
-		assert.Equal(t, 1, exitCode)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, exitCode)
 	})
 
 	t.Run("exec_close_with_nil_exit_code_no_error", func(t *testing.T) {

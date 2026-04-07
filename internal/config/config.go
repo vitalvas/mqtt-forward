@@ -27,6 +27,7 @@ type Config struct {
 	TLSCert   string `yaml:"tls_cert" env:"MQTT_TLS_CERT"`
 	TLSKey    string `yaml:"tls_key" env:"MQTT_TLS_KEY"`
 	TLSCA     string `yaml:"tls_ca" env:"MQTT_TLS_CA"`
+	LogLevel  string `yaml:"log_level" env:"MQTT_LOG_LEVEL" default:"info"`
 
 	EventHandler mqttv5.EventHandler `yaml:"-"`
 }

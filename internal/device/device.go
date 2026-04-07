@@ -49,11 +49,11 @@ func (d *Device) Run(ctx context.Context) error {
 
 	go d.manager.RunStaleCleanup(ctx, time.Duration(tunnel.StaleTimeout)*time.Second)
 
-	d.logger.Info("device started", "device_id", d.deviceID)
+	d.logger.Debug("device started", "device_id", d.deviceID)
 
 	<-ctx.Done()
 
-	d.logger.Info("device shutting down")
+	d.logger.Debug("device shutting down")
 	d.manager.CloseAll()
 
 	d.transport.Unsubscribe(controlFilter, dataFilter)
@@ -80,7 +80,7 @@ func (d *Device) handleControl(topic string, payload []byte) {
 	case "ack":
 		d.handleAck(msg)
 	default:
-		d.logger.Warn("unknown control message type", "type", msg.Type)
+		d.logger.Debug("unknown control message type", "type", msg.Type)
 	}
 }
 
@@ -109,7 +109,7 @@ func (d *Device) handleData(topic string, payload []byte) {
 }
 
 func (d *Device) handleOpen(msg tunnel.ControlMessage) {
-	d.logger.Info("open request", "session_id", msg.SessionID, "mode", msg.Mode)
+	d.logger.Debug("open request", "session_id", msg.SessionID, "mode", msg.Mode)
 
 	controlTopic := tunnel.OutControlTopic(d.deviceID)
 
@@ -159,6 +159,16 @@ func (d *Device) handleOpen(msg tunnel.ControlMessage) {
 	}
 
 	ctx := context.Background()
+	if msg.Timeout > 0 {
+		timeoutCtx, timeoutCancel := context.WithTimeout(ctx, time.Duration(msg.Timeout)*time.Second)
+		ctx = timeoutCtx
+
+		go func() {
+			<-timeoutCtx.Done()
+			timeoutCancel()
+		}()
+	}
+
 	if err := sess.Start(ctx); err != nil {
 		d.manager.Remove(msg.SessionID)
 		d.sendOpenAck(msg.SessionID, false, err.Error())
@@ -178,7 +188,7 @@ func (d *Device) handleClose(msg tunnel.ControlMessage) {
 		return
 	}
 
-	d.logger.Info("close request", "session_id", msg.SessionID)
+	d.logger.Debug("close request", "session_id", msg.SessionID)
 
 	sess.Close()
 	d.manager.Remove(msg.SessionID)
@@ -202,7 +212,12 @@ func (d *Device) handlePing(msg tunnel.ControlMessage) {
 	}
 
 	topic := tunnel.OutControlTopic(d.deviceID)
-	if err := d.transport.Publish(topic, data); err != nil {
+	if err := d.transport.Publish(tunnel.PubMessage{
+		Topic:       topic,
+		Payload:     data,
+		QoS:         0,
+		ContentType: "application/json",
+	}); err != nil {
 		d.logger.Error("publish pong", "error", err)
 	}
 }
@@ -242,7 +257,12 @@ func (d *Device) sendOpenAck(sessionID string, success bool, errMsg string) {
 	}
 
 	topic := tunnel.OutControlTopic(d.deviceID)
-	if err := d.transport.Publish(topic, data); err != nil {
+	if err := d.transport.Publish(tunnel.PubMessage{
+		Topic:       topic,
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	}); err != nil {
 		d.logger.Error("publish open_ack", "error", err)
 	}
 }

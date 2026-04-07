@@ -145,7 +145,7 @@ func (sm *SessionManager) cleanupStale(timeout time.Duration) {
 	sm.mu.Unlock()
 
 	for id, s := range staleSessions {
-		sm.logger.Info("cleaning up stale session", "session_id", id)
+		sm.logger.Debug("cleaning up stale session", "session_id", id)
 
 		if err := s.Close(); err != nil {
 			sm.logger.Error("error closing stale session", "session_id", id, "error", err)
@@ -315,7 +315,11 @@ func (sw *SequenceWriter) Write(ctx context.Context, data []byte) error {
 
 		sw.fc.AddSent(uint64(len(chunk)))
 
-		if err := sw.transport.Publish(sw.topic, frame); err != nil {
+		if err := sw.transport.Publish(PubMessage{
+			Topic:   sw.topic,
+			Payload: frame,
+			QoS:     1,
+		}); err != nil {
 			return err
 		}
 

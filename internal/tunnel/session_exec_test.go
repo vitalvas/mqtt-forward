@@ -108,6 +108,43 @@ func TestExecSession(t *testing.T) {
 		assert.Equal(t, 42, *closeMsg.ExitCode)
 	})
 
+	t.Run("sigint_exit_code", func(t *testing.T) {
+		mt := NewMockTransport("device-1")
+		sess := NewExecSession(ExecSessionConfig{
+			ID:           "sess-sig",
+			Command:      "sleep 60",
+			Transport:    mt,
+			ControlTopic: OutControlTopic("device-1"),
+			DataTopic:    OutDataTopic("device-1", "sess-sig"),
+			Logger:       testLogger(),
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		require.NoError(t, sess.Start(ctx))
+		time.Sleep(100 * time.Millisecond)
+
+		sess.Close()
+		time.Sleep(3 * time.Second)
+
+		msgs := mt.Published()
+		var closeMsg *ControlMessage
+
+		for _, msg := range msgs {
+			if msg.Topic == OutControlTopic("device-1") {
+				var cm ControlMessage
+				if json.Unmarshal(msg.Payload, &cm) == nil && cm.Type == MessageTypeClose {
+					closeMsg = &cm
+				}
+			}
+		}
+
+		require.NotNil(t, closeMsg)
+		require.NotNil(t, closeMsg.ExitCode)
+		assert.Equal(t, 0, *closeMsg.ExitCode)
+	})
+
 	t.Run("id_and_mode", func(t *testing.T) {
 		mt := NewMockTransport("device-1")
 		sess := NewExecSession(ExecSessionConfig{
@@ -121,6 +158,46 @@ func TestExecSession(t *testing.T) {
 
 		assert.Equal(t, "sess-3", sess.ID())
 		assert.Equal(t, SessionModeExec, sess.Mode())
+	})
+}
+
+func TestExecSessionHandleData(t *testing.T) {
+	t.Run("handle_data", func(t *testing.T) {
+		mt := NewMockTransport("device-1")
+		sess := NewExecSession(ExecSessionConfig{
+			ID:           "sess-hd",
+			Command:      "cat",
+			Transport:    mt,
+			ControlTopic: OutControlTopic("device-1"),
+			DataTopic:    OutDataTopic("device-1", "sess-hd"),
+			Logger:       testLogger(),
+		})
+
+		sess.HandleData(0, []byte("input"))
+		sess.Close()
+	})
+
+	t.Run("handle_data_after_close", func(t *testing.T) {
+		mt := NewMockTransport("device-1")
+		sess := NewExecSession(ExecSessionConfig{
+			ID:           "sess-hdc",
+			Command:      "cat",
+			Transport:    mt,
+			ControlTopic: OutControlTopic("device-1"),
+			DataTopic:    OutDataTopic("device-1", "sess-hdc"),
+			Logger:       testLogger(),
+		})
+
+		sess.Close()
+		sess.HandleData(0, []byte("input"))
+	})
+
+	t.Run("client_handle_data_after_close", func(t *testing.T) {
+		mt := NewMockTransport("client-1")
+		sess := NewExecClientSession("sess-chdc", mt, testLogger())
+
+		sess.Close()
+		sess.HandleData(0, []byte("data"))
 	})
 }
 

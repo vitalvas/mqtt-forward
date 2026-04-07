@@ -46,6 +46,7 @@ type ControlMessage struct {
 	ExitCode  *int   `json:"exit_code,omitempty"`
 	AckBytes  uint64 `json:"ack_bytes,omitempty"`
 	Timestamp int64  `json:"timestamp,omitempty"`
+	Timeout   int    `json:"timeout,omitempty"`
 }
 
 type ParsedTopic struct {

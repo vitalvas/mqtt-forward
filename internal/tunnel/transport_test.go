@@ -30,13 +30,13 @@ func NewMockTransport(clientID string) *MockTransport {
 	}
 }
 
-func (m *MockTransport) Publish(topic string, payload []byte) error {
+func (m *MockTransport) Publish(msg PubMessage) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p := make([]byte, len(payload))
-	copy(p, payload)
-	m.published = append(m.published, publishedMessage{Topic: topic, Payload: p})
+	p := make([]byte, len(msg.Payload))
+	copy(p, msg.Payload)
+	m.published = append(m.published, publishedMessage{Topic: msg.Topic, Payload: p})
 
 	return nil
 }
@@ -110,7 +110,7 @@ func TestMockTransport(t *testing.T) {
 	t.Run("publish_and_retrieve", func(t *testing.T) {
 		mt := NewMockTransport("test-client")
 
-		err := mt.Publish("test/topic", []byte("hello"))
+		err := mt.Publish(PubMessage{Topic: "test/topic", Payload: []byte("hello")})
 		require.NoError(t, err)
 
 		msgs := mt.Published()

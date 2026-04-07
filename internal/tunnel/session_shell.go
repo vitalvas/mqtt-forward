@@ -24,6 +24,7 @@ type ShellSession struct {
 	fc      *FlowControl
 
 	ptmx      *os.File
+	readDone  chan struct{}
 	ctx       context.Context
 	cancel    context.CancelFunc
 	closeOnce sync.Once
@@ -91,6 +92,8 @@ func (s *ShellSession) Start(ctx context.Context) error {
 
 	slave.Close()
 
+	s.readDone = make(chan struct{})
+
 	go s.readFromPTY()
 	go s.writeToPTY()
 	go s.waitForExit(cmd)
@@ -99,6 +102,8 @@ func (s *ShellSession) Start(ctx context.Context) error {
 }
 
 func (s *ShellSession) readFromPTY() {
+	defer close(s.readDone)
+
 	buf := make([]byte, MaxPayloadSize)
 
 	for {
@@ -158,6 +163,8 @@ func (s *ShellSession) waitForExit(cmd *exec.Cmd) {
 		}
 	}
 
+	<-s.readDone
+
 	s.sendClose(&exitCode)
 }
 
@@ -207,7 +214,12 @@ func (s *ShellSession) sendAck(bytes uint64) {
 		return
 	}
 
-	s.transport.Publish(s.controlTopic, data)
+	s.transport.Publish(PubMessage{
+		Topic:       s.controlTopic,
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	})
 }
 
 func (s *ShellSession) sendClose(exitCode *int) {
@@ -222,5 +234,10 @@ func (s *ShellSession) sendClose(exitCode *int) {
 		return
 	}
 
-	s.transport.Publish(s.controlTopic, data)
+	s.transport.Publish(PubMessage{
+		Topic:       s.controlTopic,
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	})
 }

@@ -7,6 +7,8 @@ import (
 	"log/slog"
 	"os/exec"
 	"sync"
+	"syscall"
+	"time"
 )
 
 type ExecSession struct {
@@ -23,6 +25,8 @@ type ExecSession struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
+	mu        sync.Mutex
+	pgid      int
 	closeOnce sync.Once
 }
 
@@ -65,6 +69,7 @@ func (s *ExecSession) run() {
 	defer s.Close()
 
 	cmd := exec.CommandContext(s.ctx, "sh", "-c", s.command)
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -82,6 +87,10 @@ func (s *ExecSession) run() {
 		s.sendClose(nil, err.Error())
 		return
 	}
+
+	s.mu.Lock()
+	s.pgid = cmd.Process.Pid
+	s.mu.Unlock()
 
 	combined := io.MultiReader(stdout, stderr)
 
@@ -106,7 +115,7 @@ func (s *ExecSession) run() {
 	if err := cmd.Wait(); err != nil {
 		var exitErr *exec.ExitError
 		if ok := isExitError(err, &exitErr); ok {
-			exitCode = exitErr.ExitCode()
+			exitCode = signalExitCode(exitErr)
 		} else {
 			s.sendClose(nil, err.Error())
 			return
@@ -125,10 +134,45 @@ func isExitError(err error, target **exec.ExitError) bool {
 	return false
 }
 
+func signalExitCode(exitErr *exec.ExitError) int {
+	if code := exitErr.ExitCode(); code >= 0 {
+		return code
+	}
+
+	status, ok := exitErr.Sys().(syscall.WaitStatus)
+	if !ok {
+		return 1
+	}
+
+	if status.Signaled() {
+		sig := status.Signal()
+		if sig == syscall.SIGINT || sig == syscall.SIGTERM {
+			return 0
+		}
+
+		return 128 + int(sig)
+	}
+
+	return 1
+}
+
 func (s *ExecSession) Close() error {
 	s.closeOnce.Do(func() {
-		if s.cancel != nil {
-			s.cancel()
+		s.mu.Lock()
+		pgid := s.pgid
+		s.mu.Unlock()
+
+		if pgid > 0 {
+			syscall.Kill(-pgid, syscall.SIGINT)
+
+			go func() {
+				time.Sleep(2 * time.Second)
+				syscall.Kill(-pgid, syscall.SIGKILL)
+			}()
+		} else {
+			if s.cancel != nil {
+				s.cancel()
+			}
 		}
 
 		s.reorder.Close()
@@ -157,7 +201,12 @@ func (s *ExecSession) sendClose(exitCode *int, errMsg string) {
 		return
 	}
 
-	if err := s.transport.Publish(s.controlTopic, data); err != nil {
+	if err := s.transport.Publish(PubMessage{
+		Topic:       s.controlTopic,
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	}); err != nil {
 		s.logger.Error("publish close error", "session_id", s.id, "error", err)
 	}
 }

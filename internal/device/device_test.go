@@ -35,13 +35,13 @@ func newMockTransport(clientID string) *mockTransport {
 	}
 }
 
-func (m *mockTransport) Publish(topic string, payload []byte) error {
+func (m *mockTransport) Publish(msg tunnel.PubMessage) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	p := make([]byte, len(payload))
-	copy(p, payload)
-	m.published = append(m.published, pubMsg{Topic: topic, Payload: p})
+	p := make([]byte, len(msg.Payload))
+	copy(p, msg.Payload)
+	m.published = append(m.published, pubMsg{Topic: msg.Topic, Payload: p})
 
 	return nil
 }
@@ -685,6 +685,119 @@ func TestDevice(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatal("timeout waiting for routed data")
 		}
+	})
+}
+
+func TestDeviceCloseAllSessions(t *testing.T) {
+	t.Run("close_empty", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		dev.CloseAllSessions()
+	})
+}
+
+func TestDeviceHandleOpen(t *testing.T) {
+	t.Run("tcp_dial_failure", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		go dev.Run(ctx)
+		time.Sleep(50 * time.Millisecond)
+
+		open := tunnel.ControlMessage{
+			Type:      tunnel.MessageTypeOpen,
+			SessionID: "sess-fail",
+			Mode:      tunnel.SessionModeTCP,
+			Target:    "127.0.0.1:1",
+		}
+
+		data, _ := json.Marshal(open)
+		mt.deliver(tunnel.InControlTopic("device-1"), data)
+		time.Sleep(100 * time.Millisecond)
+
+		pubs := mt.getPublished()
+		require.NotEmpty(t, pubs)
+
+		var ack tunnel.ControlMessage
+		require.NoError(t, json.Unmarshal(pubs[0].Payload, &ack))
+
+		assert.Equal(t, tunnel.MessageTypeOpenAck, ack.Type)
+		assert.False(t, ack.Success)
+	})
+
+	t.Run("unsupported_mode", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		go dev.Run(ctx)
+		time.Sleep(50 * time.Millisecond)
+
+		open := tunnel.ControlMessage{
+			Type:      tunnel.MessageTypeOpen,
+			SessionID: "sess-bad",
+			Mode:      "invalid",
+		}
+
+		data, _ := json.Marshal(open)
+		mt.deliver(tunnel.InControlTopic("device-1"), data)
+		time.Sleep(50 * time.Millisecond)
+
+		pubs := mt.getPublished()
+		require.NotEmpty(t, pubs)
+
+		var ack tunnel.ControlMessage
+		require.NoError(t, json.Unmarshal(pubs[0].Payload, &ack))
+
+		assert.Equal(t, tunnel.MessageTypeOpenAck, ack.Type)
+		assert.False(t, ack.Success)
+		assert.Contains(t, ack.Error, "unsupported mode")
+	})
+}
+
+func TestDeviceExecWithTimeout(t *testing.T) {
+	t.Run("exec_with_timeout", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		go dev.Run(ctx)
+		time.Sleep(50 * time.Millisecond)
+
+		open := tunnel.ControlMessage{
+			Type:      tunnel.MessageTypeOpen,
+			SessionID: "sess-timeout",
+			Mode:      tunnel.SessionModeExec,
+			Command:   "echo hello",
+			Timeout:   5,
+		}
+
+		data, _ := json.Marshal(open)
+		mt.deliver(tunnel.InControlTopic("device-1"), data)
+		time.Sleep(500 * time.Millisecond)
+
+		pubs := mt.getPublished()
+		var ack *tunnel.ControlMessage
+
+		for _, p := range pubs {
+			if p.Topic == tunnel.OutControlTopic("device-1") {
+				var cm tunnel.ControlMessage
+				if json.Unmarshal(p.Payload, &cm) == nil && cm.Type == tunnel.MessageTypeOpenAck {
+					ack = &cm
+				}
+			}
+		}
+
+		require.NotNil(t, ack)
+		assert.True(t, ack.Success)
 	})
 }
 

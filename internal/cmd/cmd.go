@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -21,9 +23,9 @@ import (
 
 var cfg config.Config
 
-var connectTransport func(cfg *config.Config) (tunnel.Transport, error) = defaultConnectTransport
+var connectTransport func(cfg *config.Config, logger *slog.Logger) (tunnel.Transport, error) = defaultConnectTransport
 
-func defaultConnectTransport(cfg *config.Config) (tunnel.Transport, error) {
+func defaultConnectTransport(cfg *config.Config, logger *slog.Logger) (tunnel.Transport, error) {
 	opts, err := cfg.MQTTOptions()
 	if err != nil {
 		return nil, fmt.Errorf("mqtt options: %w", err)
@@ -34,7 +36,7 @@ func defaultConnectTransport(cfg *config.Config) (tunnel.Transport, error) {
 		return nil, fmt.Errorf("mqtt connect: %w", err)
 	}
 
-	return tunnel.NewMQTTTransport(mqttClient), nil
+	return tunnel.NewMQTTTransport(mqttClient, logger), nil
 }
 
 func NewRootCmd() *cobra.Command {
@@ -59,7 +61,7 @@ func newDeviceCmd() *cobra.Command {
 		Short: "Run in device mode (accept tunnel requests)",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := xlogger.New(xlogger.Config{
-				Level:   "info",
+				Level:   cfg.LogLevel,
 				LogType: "json",
 			})
 
@@ -77,7 +79,7 @@ func newDeviceCmd() *cobra.Command {
 				}
 			})
 
-			transport, err := connectTransport(&cfg)
+			transport, err := connectTransport(&cfg, logger)
 			if err != nil {
 				return err
 			}
@@ -137,7 +139,7 @@ func newClientTCPCmd() *cobra.Command {
 		Short: "Forward TCP connections through MQTT tunnel",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := xlogger.New(xlogger.Config{
-				Level:   "info",
+				Level:   cfg.LogLevel,
 				LogType: "json",
 			})
 
@@ -151,7 +153,7 @@ func newClientTCPCmd() *cobra.Command {
 				}
 			})
 
-			transport, err := connectTransport(&cfg)
+			transport, err := connectTransport(&cfg, logger)
 			if err != nil {
 				return err
 			}
@@ -194,7 +196,7 @@ func newClientSOCKS5Cmd() *cobra.Command {
 		Short: "Run SOCKS5 proxy through MQTT tunnel",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := xlogger.New(xlogger.Config{
-				Level:   "info",
+				Level:   cfg.LogLevel,
 				LogType: "json",
 			})
 
@@ -208,7 +210,7 @@ func newClientSOCKS5Cmd() *cobra.Command {
 				}
 			})
 
-			transport, err := connectTransport(&cfg)
+			transport, err := connectTransport(&cfg, logger)
 			if err != nil {
 				return err
 			}
@@ -246,7 +248,7 @@ func newClientShellCmd() *cobra.Command {
 		Short: "Open interactive shell on device through MQTT tunnel",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := xlogger.New(xlogger.Config{
-				Level:   "info",
+				Level:   cfg.LogLevel,
 				LogType: "json",
 			})
 
@@ -260,7 +262,7 @@ func newClientShellCmd() *cobra.Command {
 				}
 			})
 
-			transport, err := connectTransport(&cfg)
+			transport, err := connectTransport(&cfg, logger)
 			if err != nil {
 				return err
 			}
@@ -282,19 +284,22 @@ func newClientShellCmd() *cobra.Command {
 func newClientExecCmd() *cobra.Command {
 	var (
 		deviceID string
-		command  string
+		timeout  time.Duration
 	)
 
 	cmd := &cobra.Command{
-		Use:   "exec",
+		Use:   "exec [flags] -- COMMAND [ARGS...]",
 		Short: "Execute command on device through MQTT tunnel",
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := xlogger.New(xlogger.Config{
-				Level:   "info",
+				Level:   cfg.LogLevel,
 				LogType: "json",
 			})
 
 			resolveClientID()
+
+			command := strings.Join(args, " ")
 
 			var c *client.Client
 
@@ -304,7 +309,7 @@ func newClientExecCmd() *cobra.Command {
 				}
 			})
 
-			transport, err := connectTransport(&cfg)
+			transport, err := connectTransport(&cfg, logger)
 			if err != nil {
 				return err
 			}
@@ -312,24 +317,43 @@ func newClientExecCmd() *cobra.Command {
 
 			c = client.New(transport, deviceID, logger)
 
-			exitCode, err := c.RunExec(cmd.Context(), command, os.Stdout)
+			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
+			defer cancel()
+
+			sigCh := make(chan os.Signal, 1)
+			signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+			go func() {
+				select {
+				case <-sigCh:
+					cancel()
+				case <-ctx.Done():
+				}
+
+				// Keep intercepting signals to prevent default handler from killing the process
+				for range sigCh {
+				}
+			}()
+
+			exitCode, err := c.RunExec(ctx, command, os.Stdout)
 			if err != nil {
 				return err
 			}
 
-			if exitCode != 0 {
-				os.Exit(exitCode)
+			if exitCode < 0 {
+				exitCode = 0
 			}
+
+			os.Exit(exitCode)
 
 			return nil
 		},
 	}
 
 	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-	cmd.Flags().StringVar(&command, "command", "", "Command to execute")
+	cmd.Flags().DurationVar(&timeout, "timeout", time.Minute, "Command timeout")
 
 	cmd.MarkFlagRequired("device")
-	cmd.MarkFlagRequired("command")
 
 	return cmd
 }
@@ -346,7 +370,7 @@ func newClientPingCmd() *cobra.Command {
 		Short: "Test latency and availability of a device",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			logger := xlogger.New(xlogger.Config{
-				Level:   "info",
+				Level:   cfg.LogLevel,
 				LogType: "json",
 			})
 
@@ -360,7 +384,7 @@ func newClientPingCmd() *cobra.Command {
 				}
 			})
 
-			transport, err := connectTransport(&cfg)
+			transport, err := connectTransport(&cfg, logger)
 			if err != nil {
 				return err
 			}
