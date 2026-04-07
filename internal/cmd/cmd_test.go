@@ -168,9 +168,6 @@ func TestCommands(t *testing.T) {
 
 		f = cmd.Flags().Lookup("device")
 		require.NotNil(t, f)
-
-		f = cmd.Flags().Lookup("client-id")
-		require.NotNil(t, f)
 	})
 
 	t.Run("shell_cmd_flags", func(t *testing.T) {
@@ -179,9 +176,6 @@ func TestCommands(t *testing.T) {
 		assert.Equal(t, "shell", cmd.Use)
 
 		f := cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
-
-		f = cmd.Flags().Lookup("client-id")
 		require.NotNil(t, f)
 	})
 
@@ -196,9 +190,6 @@ func TestCommands(t *testing.T) {
 
 		f = cmd.Flags().Lookup("device")
 		require.NotNil(t, f)
-
-		f = cmd.Flags().Lookup("client-id")
-		require.NotNil(t, f)
 	})
 
 	t.Run("exec_cmd_flags", func(t *testing.T) {
@@ -207,9 +198,6 @@ func TestCommands(t *testing.T) {
 		assert.Equal(t, "exec", cmd.Use)
 
 		f := cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
-
-		f = cmd.Flags().Lookup("client-id")
 		require.NotNil(t, f)
 
 		f = cmd.Flags().Lookup("command")
@@ -222,9 +210,6 @@ func TestCommands(t *testing.T) {
 		assert.Equal(t, "ping", cmd.Use)
 
 		f := cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
-
-		f = cmd.Flags().Lookup("client-id")
 		require.NotNil(t, f)
 
 		f = cmd.Flags().Lookup("count")
@@ -334,7 +319,7 @@ func TestCommandsRunE(t *testing.T) {
 		setMockConnector(t)
 
 		cmd := newClientShellCmd()
-		cmd.SetArgs([]string{"--device", "dev1", "--client-id", "c1"})
+		cmd.SetArgs([]string{"--device", "dev1"})
 
 		err := cmd.Execute()
 		assert.Error(t, err)
@@ -349,7 +334,7 @@ func TestCommandsRunE(t *testing.T) {
 
 		cmd := newClientExecCmd()
 		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--client-id", "c1", "--command", "echo hi"})
+		cmd.SetArgs([]string{"--device", "dev1", "--command", "echo hi"})
 
 		err := cmd.Execute()
 		assert.Error(t, err)
@@ -377,40 +362,10 @@ func TestCommandsRunE(t *testing.T) {
 
 		cmd := newClientTCPCmd()
 		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--client-id", "c1", "--target", "localhost:22", "--listen", ":0"})
+		cmd.SetArgs([]string{"--device", "dev1", "--target", "localhost:22", "--listen", ":0"})
 
 		err := cmd.Execute()
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
-	})
-
-	t.Run("exec_auto_client_id", func(t *testing.T) {
-		setFailingConnector(t)
-
-		cmd := newClientExecCmd()
-		cmd.SetArgs([]string{"--device", "dev1", "--command", "ls"})
-
-		err := cmd.Execute()
-		assert.Error(t, err)
-	})
-
-	t.Run("tcp_auto_client_id", func(t *testing.T) {
-		setFailingConnector(t)
-
-		cmd := newClientTCPCmd()
-		cmd.SetArgs([]string{"--device", "dev1", "--target", "localhost:22"})
-
-		err := cmd.Execute()
-		assert.Error(t, err)
-	})
-
-	t.Run("shell_auto_client_id", func(t *testing.T) {
-		setFailingConnector(t)
-
-		cmd := newClientShellCmd()
-		cmd.SetArgs([]string{"--device", "dev1"})
-
-		err := cmd.Execute()
-		assert.Error(t, err)
 	})
 
 	t.Run("socks5_connect_error", func(t *testing.T) {
@@ -432,20 +387,10 @@ func TestCommandsRunE(t *testing.T) {
 
 		cmd := newClientSOCKS5Cmd()
 		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--client-id", "c1", "--listen", ":0"})
+		cmd.SetArgs([]string{"--device", "dev1", "--listen", ":0"})
 
 		err := cmd.Execute()
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
-	})
-
-	t.Run("socks5_auto_client_id", func(t *testing.T) {
-		setFailingConnector(t)
-
-		cmd := newClientSOCKS5Cmd()
-		cmd.SetArgs([]string{"--device", "dev1"})
-
-		err := cmd.Execute()
-		assert.Error(t, err)
 	})
 
 	t.Run("ping_connect_error", func(t *testing.T) {
@@ -467,21 +412,12 @@ func TestCommandsRunE(t *testing.T) {
 
 		cmd := newClientPingCmd()
 		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--client-id", "c1", "--count", "1"})
+		cmd.SetArgs([]string{"--device", "dev1", "--count", "1"})
 
 		err := cmd.Execute()
 		assert.NoError(t, err)
 	})
 
-	t.Run("ping_auto_client_id", func(t *testing.T) {
-		setFailingConnector(t)
-
-		cmd := newClientPingCmd()
-		cmd.SetArgs([]string{"--device", "dev1"})
-
-		err := cmd.Execute()
-		assert.Error(t, err)
-	})
 }
 
 func TestNewEventHandler(t *testing.T) {

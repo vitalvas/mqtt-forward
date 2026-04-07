@@ -119,12 +119,17 @@ func newClientCmd() *cobra.Command {
 	return clientCmd
 }
 
+func resolveClientID() {
+	if cfg.ClientID == "" {
+		cfg.ClientID = defaultClientID()
+	}
+}
+
 func newClientTCPCmd() *cobra.Command {
 	var (
 		listen   string
 		target   string
 		deviceID string
-		clientID string
 	)
 
 	cmd := &cobra.Command{
@@ -136,11 +141,7 @@ func newClientTCPCmd() *cobra.Command {
 				LogType: "json",
 			})
 
-			if clientID == "" {
-				clientID = defaultClientID()
-			}
-
-			cfg.ClientID = clientID
+			resolveClientID()
 
 			var c *client.Client
 
@@ -175,7 +176,6 @@ func newClientTCPCmd() *cobra.Command {
 	cmd.Flags().StringVar(&listen, "listen", ":8080", "Local listen address")
 	cmd.Flags().StringVar(&target, "target", "", "Target host:port on device")
 	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-	cmd.Flags().StringVar(&clientID, "client-id", "", "Client identifier (auto-generated if empty)")
 
 	cmd.MarkFlagRequired("target")
 	cmd.MarkFlagRequired("device")
@@ -187,7 +187,6 @@ func newClientSOCKS5Cmd() *cobra.Command {
 	var (
 		listen   string
 		deviceID string
-		clientID string
 	)
 
 	cmd := &cobra.Command{
@@ -199,11 +198,7 @@ func newClientSOCKS5Cmd() *cobra.Command {
 				LogType: "json",
 			})
 
-			if clientID == "" {
-				clientID = defaultClientID()
-			}
-
-			cfg.ClientID = clientID
+			resolveClientID()
 
 			var c *client.Client
 
@@ -237,7 +232,6 @@ func newClientSOCKS5Cmd() *cobra.Command {
 
 	cmd.Flags().StringVar(&listen, "listen", ":1080", "Local listen address")
 	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-	cmd.Flags().StringVar(&clientID, "client-id", "", "Client identifier (auto-generated if empty)")
 
 	cmd.MarkFlagRequired("device")
 
@@ -245,10 +239,7 @@ func newClientSOCKS5Cmd() *cobra.Command {
 }
 
 func newClientShellCmd() *cobra.Command {
-	var (
-		deviceID string
-		clientID string
-	)
+	var deviceID string
 
 	cmd := &cobra.Command{
 		Use:   "shell",
@@ -259,11 +250,7 @@ func newClientShellCmd() *cobra.Command {
 				LogType: "json",
 			})
 
-			if clientID == "" {
-				clientID = defaultClientID()
-			}
-
-			cfg.ClientID = clientID
+			resolveClientID()
 
 			var c *client.Client
 
@@ -286,7 +273,6 @@ func newClientShellCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-	cmd.Flags().StringVar(&clientID, "client-id", "", "Client identifier")
 
 	cmd.MarkFlagRequired("device")
 
@@ -296,7 +282,6 @@ func newClientShellCmd() *cobra.Command {
 func newClientExecCmd() *cobra.Command {
 	var (
 		deviceID string
-		clientID string
 		command  string
 	)
 
@@ -309,11 +294,7 @@ func newClientExecCmd() *cobra.Command {
 				LogType: "json",
 			})
 
-			if clientID == "" {
-				clientID = defaultClientID()
-			}
-
-			cfg.ClientID = clientID
+			resolveClientID()
 
 			var c *client.Client
 
@@ -345,7 +326,6 @@ func newClientExecCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-	cmd.Flags().StringVar(&clientID, "client-id", "", "Client identifier")
 	cmd.Flags().StringVar(&command, "command", "", "Command to execute")
 
 	cmd.MarkFlagRequired("device")
@@ -357,7 +337,6 @@ func newClientExecCmd() *cobra.Command {
 func newClientPingCmd() *cobra.Command {
 	var (
 		deviceID string
-		clientID string
 		count    int
 		interval time.Duration
 	)
@@ -371,11 +350,7 @@ func newClientPingCmd() *cobra.Command {
 				LogType: "json",
 			})
 
-			if clientID == "" {
-				clientID = defaultClientID()
-			}
-
-			cfg.ClientID = clientID
+			resolveClientID()
 
 			var c *client.Client
 
@@ -398,7 +373,6 @@ func newClientPingCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-	cmd.Flags().StringVar(&clientID, "client-id", "", "Client identifier (auto-generated if empty)")
 	cmd.Flags().IntVar(&count, "count", 4, "Number of pings to send")
 	cmd.Flags().DurationVar(&interval, "interval", time.Second, "Interval between pings")
 

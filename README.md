@@ -30,6 +30,25 @@ graph LR
 | `exec` | One-shot command execution with stdout and exit code |
 | `ping` | Latency and availability probe |
 
+## Usage
+
+Device mode (runs on the target machine):
+
+```sh
+mqtt-forward device
+mqtt-forward device --device-id my-device
+```
+
+Client mode (runs on the machine initiating connections):
+
+```sh
+mqtt-forward client ping --device my-device
+mqtt-forward client exec --device my-device --command "uname -a"
+mqtt-forward client shell --device my-device
+mqtt-forward client tcp --device my-device --target localhost:22 --listen :2222
+mqtt-forward client socks5 --device my-device --listen :1080
+```
+
 ## MQTT Topics
 
 All messages use QoS 1. Topic structure:
@@ -278,8 +297,8 @@ All settings are configured via environment variables:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MQTT_BROKER` | Broker URL | `tcp://localhost:1883` |
-| `MQTT_CLIENT_ID` | Client identifier | (empty) |
-| `MQTT_DEVICE_ID` | Device identifier | (empty) |
+| `MQTT_CLIENT_ID` | MQTT client identifier (defaults to hostname) | (hostname) |
+| `MQTT_DEVICE_ID` | Device identifier (required for device mode) | (empty) |
 | `MQTT_USERNAME` | MQTT username | (empty) |
 | `MQTT_PASSWORD` | MQTT password | (empty) |
 | `MQTT_KEEP_ALIVE` | Keep-alive interval in seconds | `60` |
