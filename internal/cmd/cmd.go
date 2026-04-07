@@ -64,7 +64,7 @@ func newDeviceCmd() *cobra.Command {
 			})
 
 			if cfg.DeviceID == "" {
-				return fmt.Errorf("--device-id is required")
+				return fmt.Errorf("device-id is required (--device-id flag or MQTT_DEVICE_ID env)")
 			}
 
 			cfg.ClientID = cfg.DeviceID
@@ -99,8 +99,7 @@ func newDeviceCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&cfg.DeviceID, "device-id", "", "Device identifier")
-	cmd.MarkFlagRequired("device-id")
+	cmd.Flags().StringVar(&cfg.DeviceID, "device-id", "", "Device identifier (or MQTT_DEVICE_ID)")
 
 	return cmd
 }
