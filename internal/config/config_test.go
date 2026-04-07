@@ -124,6 +124,54 @@ func TestConfig(t *testing.T) {
 		assert.NotEmpty(t, opts)
 	})
 
+	t.Run("alpn_tls_port_443", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		caPath := filepath.Join(tmpDir, "ca.pem")
+		generateTestCA(t, caPath)
+
+		cfg := Config{
+			Broker:    "tls://endpoint.iot.region.amazonaws.com:443",
+			TLSCA:     caPath,
+			KeepAlive: 60,
+		}
+
+		tlsCfg, err := cfg.buildTLSConfig()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"x-amzn-mqtt-ca"}, tlsCfg.NextProtos)
+	})
+
+	t.Run("alpn_wss_port_443", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		caPath := filepath.Join(tmpDir, "ca.pem")
+		generateTestCA(t, caPath)
+
+		cfg := Config{
+			Broker:    "wss://endpoint.iot.region.amazonaws.com:443",
+			TLSCA:     caPath,
+			KeepAlive: 60,
+		}
+
+		tlsCfg, err := cfg.buildTLSConfig()
+		require.NoError(t, err)
+		assert.Equal(t, []string{"http/1.1"}, tlsCfg.NextProtos)
+	})
+
+	t.Run("no_alpn_port_8883", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		caPath := filepath.Join(tmpDir, "ca.pem")
+		generateTestCA(t, caPath)
+
+		cfg := Config{
+			Broker:    "tls://broker.example.com:8883",
+			TLSCA:     caPath,
+			KeepAlive: 60,
+		}
+
+		tlsCfg, err := cfg.buildTLSConfig()
+		require.NoError(t, err)
+		assert.Nil(t, tlsCfg.NextProtos)
+	})
+
 	t.Run("mqtt_options_tls_cert_missing", func(t *testing.T) {
 		cfg := Config{
 			Broker:    "tcp://localhost:1883",

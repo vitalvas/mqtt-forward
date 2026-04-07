@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"net/url"
 	"os"
 	"time"
 
@@ -67,6 +68,10 @@ func (c *Config) buildTLSConfig() (*tls.Config, error) {
 		MinVersion: tls.VersionTLS12,
 	}
 
+	if alpn := c.alpnProtocol(); alpn != "" {
+		tlsConfig.NextProtos = []string{alpn}
+	}
+
 	if c.TLSCert != "" && c.TLSKey != "" {
 		cert, err := tls.LoadX509KeyPair(c.TLSCert, c.TLSKey)
 		if err != nil {
@@ -91,6 +96,22 @@ func (c *Config) buildTLSConfig() (*tls.Config, error) {
 	}
 
 	return tlsConfig, nil
+}
+
+func (c *Config) alpnProtocol() string {
+	u, err := url.Parse(c.Broker)
+	if err != nil || u.Port() != "443" {
+		return ""
+	}
+
+	switch u.Scheme {
+	case "tls", "ssl", "tcps":
+		return "x-amzn-mqtt-ca"
+	case "wss":
+		return "http/1.1"
+	default:
+		return ""
+	}
 }
 
 func (c *Config) ConnectTimeout() time.Duration {

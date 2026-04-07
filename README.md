@@ -271,6 +271,43 @@ stateDiagram-v2
 
 On connection loss, all active sessions are torn down. The MQTT client reconnects automatically with unlimited retries. Subscriptions are restored on reconnect via the broker-side session or client-side resubscription.
 
+## Configuration
+
+All settings are configured via environment variables:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `MQTT_BROKER` | Broker URL | `tcp://localhost:1883` |
+| `MQTT_CLIENT_ID` | Client identifier | (empty) |
+| `MQTT_DEVICE_ID` | Device identifier | (empty) |
+| `MQTT_USERNAME` | MQTT username | (empty) |
+| `MQTT_PASSWORD` | MQTT password | (empty) |
+| `MQTT_KEEP_ALIVE` | Keep-alive interval in seconds | `60` |
+| `MQTT_TLS_CERT` | Path to TLS client certificate | (empty) |
+| `MQTT_TLS_KEY` | Path to TLS client private key | (empty) |
+| `MQTT_TLS_CA` | Path to TLS CA certificate | (empty) |
+
+When the broker port is 443, the ALPN protocol is set automatically based on the URL scheme:
+
+| Scheme | ALPN | Protocol |
+|--------|------|----------|
+| `tls://`, `ssl://`, `tcps://` | `x-amzn-mqtt-ca` | MQTT over TLS |
+| `wss://` | `http/1.1` | MQTT over WebSocket Secure |
+
+### AWS IoT Core Example
+
+```sh
+curl -o AmazonRootCA1.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
+
+export MQTT_BROKER=tls://ENDPOINT.iot.REGION.amazonaws.com:443
+export MQTT_TLS_CERT=/path/to/device.cert.pem
+export MQTT_TLS_KEY=/path/to/device.private.key
+export MQTT_TLS_CA=/path/to/AmazonRootCA1.pem
+export MQTT_DEVICE_ID=my-device
+
+mqtt-forward device
+```
+
 ## Constants
 
 | Parameter | Value |
