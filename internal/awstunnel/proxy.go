@@ -181,6 +181,13 @@ func (p *Proxy) readLoop(ctx context.Context, conn wsConn) error {
 		for len(readBuf) >= 2 {
 			msg, consumed, err := DecodeFrame(readBuf)
 			if err != nil {
+				frameLen := int(readBuf[0])<<8 | int(readBuf[1])
+				if len(readBuf) >= 2+frameLen {
+					p.logger.Error("corrupt frame, discarding", "frame_len", frameLen, "error", err)
+					readBuf = readBuf[2+frameLen:]
+					continue
+				}
+
 				break
 			}
 
@@ -278,7 +285,8 @@ func (p *Proxy) handleStreamStart(ctx context.Context, msg *pb.Message) error {
 		return fmt.Errorf("unknown service: %s", serviceID)
 	}
 
-	conn, err := net.Dial("tcp", target)
+	dialer := net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", target)
 	if err != nil {
 		p.sendStreamReset(msg.GetStreamId())
 		return fmt.Errorf("dial %s: %w", target, err)
@@ -314,7 +322,8 @@ func (p *Proxy) handleConnectionStart(ctx context.Context, msg *pb.Message) erro
 		return fmt.Errorf("unknown service: %s", serviceID)
 	}
 
-	conn, err := net.Dial("tcp", target)
+	dialer := net.Dialer{Timeout: 10 * time.Second}
+	conn, err := dialer.DialContext(ctx, "tcp", target)
 	if err != nil {
 		p.sendConnectionReset(msg.GetStreamId(), serviceID, msg.GetConnectionId())
 		return fmt.Errorf("dial %s: %w", target, err)

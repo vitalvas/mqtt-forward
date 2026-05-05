@@ -360,7 +360,7 @@ func TestProxyStreamStart(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_STREAM_START, StreamId: 1, ServiceId: "SSH"}
-		err := p.handleStreamStart(nil, msg)
+		err := p.handleStreamStart(context.Background(), msg)
 		assert.Error(t, err)
 	})
 }
@@ -373,7 +373,7 @@ func TestProxyConnectionStart(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_CONNECTION_START, StreamId: 1, ServiceId: "SSH", ConnectionId: 1}
-		err := p.handleConnectionStart(nil, msg)
+		err := p.handleConnectionStart(context.Background(), msg)
 		assert.Error(t, err)
 	})
 }
@@ -639,6 +639,117 @@ func TestProxyReadLoop(t *testing.T) {
 
 		err := p.readLoop(ctx, ws)
 		assert.NoError(t, err)
+	})
+}
+
+func TestProxyReadLoopCorruptFrame(t *testing.T) {
+	t.Run("discards_corrupt_frame_and_continues", func(t *testing.T) {
+		// Build a corrupt frame: valid length prefix but invalid protobuf body
+		corruptBody := []byte{0xFF, 0xFE, 0xFD, 0xFC}
+		corruptFrame := make([]byte, 2+len(corruptBody))
+		corruptFrame[0] = 0
+		corruptFrame[1] = byte(len(corruptBody))
+		copy(corruptFrame[2:], corruptBody)
+
+		// Build a valid frame after the corrupt one
+		validMsg := &pb.Message{
+			Type:                pb.Message_SERVICE_IDS,
+			AvailableServiceIds: []string{"SSH"},
+		}
+		validFrame, _ := EncodeFrame(validMsg)
+
+		// Send both frames in one message, then close
+		combined := append(corruptFrame, validFrame...)
+
+		ws := &mockWSConn{
+			messages: [][]byte{combined},
+			closeErr: &websocket.CloseError{Code: websocket.CloseNormalClosure},
+		}
+
+		p := New(ProxyConfig{
+			Services: map[string]string{"SSH": "localhost:22"},
+			Logger:   testLogger(),
+		})
+		p.conn = ws
+
+		err := p.readLoop(context.Background(), ws)
+		assert.NoError(t, err)
+	})
+}
+
+func TestProxyStreamStartSuccess(t *testing.T) {
+	t.Run("connects_to_local_service", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.NoError(t, err)
+		defer listener.Close()
+
+		go func() {
+			conn, _ := listener.Accept()
+			if conn != nil {
+				conn.Close()
+			}
+		}()
+
+		ws := &mockWSConn{}
+
+		p := New(ProxyConfig{
+			Services: map[string]string{"SSH": listener.Addr().String()},
+			Logger:   testLogger(),
+		})
+		p.conn = ws
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		msg := &pb.Message{Type: pb.Message_STREAM_START, StreamId: 1, ServiceId: "SSH"}
+		err = p.handleStreamStart(ctx, msg)
+		assert.NoError(t, err)
+
+		p.mu.Lock()
+		_, ok := p.streams[int32(1)]
+		p.mu.Unlock()
+		assert.True(t, ok)
+
+		time.Sleep(100 * time.Millisecond)
+		p.closeStream(1)
+	})
+}
+
+func TestProxyConnectionStartSuccess(t *testing.T) {
+	t.Run("connects_to_local_service", func(t *testing.T) {
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		assert.NoError(t, err)
+		defer listener.Close()
+
+		go func() {
+			conn, _ := listener.Accept()
+			if conn != nil {
+				conn.Close()
+			}
+		}()
+
+		ws := &mockWSConn{}
+
+		p := New(ProxyConfig{
+			Services: map[string]string{"SSH": listener.Addr().String()},
+			Logger:   testLogger(),
+		})
+		p.conn = ws
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		msg := &pb.Message{Type: pb.Message_CONNECTION_START, StreamId: 1, ServiceId: "SSH", ConnectionId: 1}
+		err = p.handleConnectionStart(ctx, msg)
+		assert.NoError(t, err)
+
+		p.mu.Lock()
+		_, ok := p.streams[int32(1)]
+		p.mu.Unlock()
+		assert.True(t, ok)
+
+		time.Sleep(100 * time.Millisecond)
+		p.closeStream(1)
 	})
 }
 

@@ -92,15 +92,35 @@ func (s *ExecSession) run() {
 	s.pgid = cmd.Process.Pid
 	s.mu.Unlock()
 
-	combined := io.MultiReader(stdout, stderr)
+	pr, pw := io.Pipe()
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+		io.Copy(pw, stdout)
+	}()
+
+	go func() {
+		defer wg.Done()
+		io.Copy(pw, stderr)
+	}()
+
+	go func() {
+		wg.Wait()
+		pw.Close()
+	}()
 
 	buf := make([]byte, MaxPayloadSize)
 
 	for {
-		n, readErr := combined.Read(buf)
+		n, readErr := pr.Read(buf)
 		if n > 0 {
 			if writeErr := s.writer.Write(s.ctx, buf[:n]); writeErr != nil {
 				s.logger.Error("exec write error", "session_id", s.id, "error", writeErr)
+				s.cancel()
+				pr.Close()
 				break
 			}
 		}

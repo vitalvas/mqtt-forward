@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"sync"
 	"time"
 
 	"github.com/vitalvas/mqtt-forward/internal/awstunnel"
@@ -18,6 +19,10 @@ type Device struct {
 	logger         *slog.Logger
 	manager        *tunnel.SessionManager
 	tunnelServices map[string]string
+
+	tunnelMu    sync.Mutex
+	activeProxy *awstunnel.Proxy
+	proxyCancel context.CancelFunc
 }
 
 func New(transport tunnel.Transport, deviceID string, logger *slog.Logger) *Device {
@@ -106,15 +111,25 @@ func (d *Device) handleTunnelNotify(ctx context.Context, payload []byte) {
 		services[svc] = target
 	}
 
+	d.tunnelMu.Lock()
+	if d.proxyCancel != nil {
+		d.proxyCancel()
+	}
+
+	proxyCtx, proxyCancel := context.WithCancel(ctx)
+	d.proxyCancel = proxyCancel
+
 	proxy := awstunnel.New(awstunnel.ProxyConfig{
 		Token:    notif.ClientAccessToken,
 		Region:   notif.Region,
 		Services: services,
 		Logger:   d.logger,
 	})
+	d.activeProxy = proxy
+	d.tunnelMu.Unlock()
 
 	go func() {
-		if err := proxy.Run(ctx); err != nil {
+		if err := proxy.Run(proxyCtx); err != nil {
 			d.logger.Error("secure tunnel proxy", "error", err)
 		}
 	}()
@@ -178,7 +193,8 @@ func (d *Device) handleOpen(msg tunnel.ControlMessage) {
 
 	switch msg.Mode {
 	case tunnel.SessionModeTCP:
-		conn, err := net.Dial("tcp", msg.Target)
+		dialer := net.Dialer{Timeout: 10 * time.Second}
+		conn, err := dialer.Dial("tcp", msg.Target)
 		if err != nil {
 			d.sendOpenAck(msg.SessionID, false, err.Error())
 			return
