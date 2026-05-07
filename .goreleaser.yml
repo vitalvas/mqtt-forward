@@ -25,6 +25,26 @@ snapshot:
   version_template: '{{ .Version }}-{{ .CommitTimestamp }}-{{ .ShortCommit }}'
 changelog:
   disable: true
+nfpms:
+  - id: mqtt-forward
+    package_name: mqtt-forward
+    maintainer: vitalvas
+    vendor: vitalvas
+    homepage: https://github.com/vitalvas/mqtt-forward
+    description: MQTT Forward Device Agent
+    license: MIT
+    formats:
+      - deb
+    contents:
+      - src: packaging/systemd/mqtt-forward.service
+        dst: /lib/systemd/system/mqtt-forward.service
+      - dst: /etc/mqtt-forward
+        type: dir
+        file_info:
+          mode: 0750
+    scripts:
+      postinstall: packaging/scripts/postinstall.sh
+      preremove: packaging/scripts/preremove.sh
 release:
   github:
     owner: vitalvas
