@@ -66,7 +66,7 @@ func newDeviceCmd() *cobra.Command {
 			})
 
 			if cfg.DeviceID == "" {
-				return fmt.Errorf("device-id is required (--device-id flag or MQTT_DEVICE_ID env)")
+				cfg.DeviceID = defaultDeviceID()
 			}
 
 			cfg.ClientID = cfg.DeviceID
@@ -452,6 +452,17 @@ func newEventHandler(logger *slog.Logger, onConnectionLost func()) mqttv5.EventH
 			logger.Error("mqtt reconnect failed")
 		}
 	}
+}
+
+func defaultDeviceID() string {
+	hostname, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+
+	short, _, _ := strings.Cut(strings.ToLower(hostname), ".")
+
+	return fmt.Sprintf("tunnel-device-%s", short)
 }
 
 func defaultClientID() string {
