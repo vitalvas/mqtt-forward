@@ -31,7 +31,18 @@ const (
 	topicOut     = "out"
 	topicControl = "control"
 	topicData    = "data"
+	topicShared  = "__shared__"
 )
+
+// SharedPingTopic returns the broadcast topic for status pings.
+func SharedPingTopic() string {
+	return strings.Join([]string{topicPrefix, topicShared, MessageTypePing}, "/")
+}
+
+// AllOutControlFilter returns a wildcard filter for control messages from all devices.
+func AllOutControlFilter() string {
+	return strings.Join([]string{topicPrefix, "+", topicOut, topicControl}, "/")
+}
 
 type ControlMessage struct {
 	Type      string `json:"type"`

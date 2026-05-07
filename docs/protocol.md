@@ -9,6 +9,7 @@ tunnel/{device_id}/in/control           - control messages to device
 tunnel/{device_id}/in/data/{session_id} - data frames to device
 tunnel/{device_id}/out/control          - control messages from device
 tunnel/{device_id}/out/data/{session_id} - data frames from device
+tunnel/__shared__/ping                  - broadcast ping for device discovery
 ```
 
 - `{device_id}` - target device identifier
@@ -23,6 +24,7 @@ Device subscribes to:
 ```
 tunnel/{device_id}/in/control
 tunnel/{device_id}/in/data/+
+tunnel/__shared__/ping
 ```
 
 Client subscribes to:
@@ -30,6 +32,12 @@ Client subscribes to:
 ```
 tunnel/{device_id}/out/control
 tunnel/{device_id}/out/data/+
+```
+
+Status command subscribes to:
+
+```
+tunnel/+/out/control
 ```
 
 No wildcard `#` subscriptions are used - all patterns are strict and ACL-friendly.
@@ -50,6 +58,7 @@ topic read tunnel/d1/out/data/+
 # Device d1: subscribe to incoming requests
 topic read tunnel/d1/in/control
 topic read tunnel/d1/in/data/+
+topic read tunnel/__shared__/+
 
 # Device d1: publish responses
 topic write tunnel/d1/out/control

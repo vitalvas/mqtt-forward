@@ -130,6 +130,14 @@ func TestTopicHelpers(t *testing.T) {
 	t.Run("out_data_filter", func(t *testing.T) {
 		assert.Equal(t, "tunnel/device-1/out/data/+", OutDataFilter("device-1"))
 	})
+
+	t.Run("shared_ping_topic", func(t *testing.T) {
+		assert.Equal(t, "tunnel/__shared__/ping", SharedPingTopic())
+	})
+
+	t.Run("all_out_control_filter", func(t *testing.T) {
+		assert.Equal(t, "tunnel/+/out/control", AllOutControlFilter())
+	})
 }
 
 func TestParseTopic(t *testing.T) {

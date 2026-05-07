@@ -61,6 +61,13 @@ func (d *Device) Run(ctx context.Context) error {
 		return fmt.Errorf("subscribe data: %w", err)
 	}
 
+	sharedPingTopic := tunnel.SharedPingTopic()
+	if err := d.transport.Subscribe(sharedPingTopic, func(topic string, payload []byte) {
+		d.handleControl(topic, payload)
+	}); err != nil {
+		return fmt.Errorf("subscribe shared ping: %w", err)
+	}
+
 	if d.tunnelServices != nil {
 		notifyTopic := fmt.Sprintf("$aws/things/%s/tunnels/notify", d.deviceID)
 		if err := d.transport.Subscribe(notifyTopic, func(topic string, payload []byte) {

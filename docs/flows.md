@@ -110,6 +110,28 @@ sequenceDiagram
     C->>C: Print statistics (min/avg/max, packet loss)
 ```
 
+## Status (Device Discovery)
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant B as MQTT Broker
+    participant D1 as Device 1
+    participant D2 as Device 2
+
+    C->>B: subscribe tunnel/+/out/control
+    C->>B: ping on tunnel/__shared__/ping
+    B->>D1: ping
+    B->>D2: ping
+    D1->>B: pong on tunnel/device-1/out/control
+    D2->>B: pong on tunnel/device-2/out/control
+    B->>C: pong (device-1)
+    B->>C: pong (device-2)
+
+    Note over C: Wait 5 seconds, collect all responses
+    C->>C: Print table of online devices with RTT
+```
+
 ## Reconnection
 
 ```mermaid

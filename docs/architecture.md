@@ -25,3 +25,4 @@ graph LR
 | `shell` | Interactive PTY shell session on the device |
 | `exec` | One-shot command execution with stdout and exit code |
 | `ping` | Latency and availability probe |
+| `status` | Discover all online devices via broadcast ping |

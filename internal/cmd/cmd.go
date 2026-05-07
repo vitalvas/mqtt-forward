@@ -122,6 +122,7 @@ func newClientCmd() *cobra.Command {
 	clientCmd.AddCommand(newClientShellCmd())
 	clientCmd.AddCommand(newClientExecCmd())
 	clientCmd.AddCommand(newClientPingCmd())
+	clientCmd.AddCommand(newClientStatusCmd())
 
 	return clientCmd
 }
@@ -406,6 +407,33 @@ func newClientPingCmd() *cobra.Command {
 	cmd.Flags().DurationVar(&interval, "interval", time.Second, "Interval between pings")
 
 	cmd.MarkFlagRequired("device")
+
+	return cmd
+}
+
+func newClientStatusCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "status",
+		Short: "Discover online devices",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			logger := xlogger.New(xlogger.Config{
+				Level:   cfg.LogLevel,
+				LogType: "json",
+			})
+
+			resolveClientID()
+
+			cfg.EventHandler = newEventHandler(logger, func() {})
+
+			transport, err := connectTransport(&cfg, logger)
+			if err != nil {
+				return err
+			}
+			defer transport.Close()
+
+			return client.RunStatus(cmd.Context(), transport, os.Stdout)
+		},
+	}
 
 	return cmd
 }

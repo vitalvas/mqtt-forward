@@ -140,7 +140,7 @@ func TestCommands(t *testing.T) {
 		cmd := newClientCmd()
 
 		assert.Equal(t, "client", cmd.Use)
-		assert.Len(t, cmd.Commands(), 5)
+		assert.Len(t, cmd.Commands(), 6)
 
 		var names []string
 		for _, sub := range cmd.Commands() {
@@ -152,6 +152,7 @@ func TestCommands(t *testing.T) {
 		assert.Contains(t, names, "shell")
 		assert.Contains(t, names, "exec")
 		assert.Contains(t, names, "ping")
+		assert.Contains(t, names, "status")
 	})
 
 	t.Run("tcp_cmd_flags", func(t *testing.T) {
