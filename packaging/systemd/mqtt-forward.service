@@ -5,11 +5,12 @@ Wants=network-online.target
 ConditionPathExists=/etc/mqtt-forward/mqtt-forward.env
 
 [Service]
-Type=simple
+Type=notify
 ExecStart=/usr/bin/mqtt-forward device
 EnvironmentFile=/etc/mqtt-forward/mqtt-forward.env
-Restart=on-failure
+Restart=always
 RestartSec=5
+WatchdogSec=30
 LimitNOFILE=65536
 
 [Install]

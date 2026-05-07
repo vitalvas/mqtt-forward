@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/vitalvas/mqtt-forward/internal/awstunnel"
+	"github.com/vitalvas/mqtt-forward/internal/sdnotify"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 )
 
@@ -23,6 +24,8 @@ type Device struct {
 	tunnelMu    sync.Mutex
 	activeProxy *awstunnel.Proxy
 	proxyCancel context.CancelFunc
+
+	healthCheck func() bool
 }
 
 func New(transport tunnel.Transport, deviceID string, logger *slog.Logger) *Device {
@@ -36,6 +39,10 @@ func New(transport tunnel.Transport, deviceID string, logger *slog.Logger) *Devi
 
 func (d *Device) SetTunnelServices(services map[string]string) {
 	d.tunnelServices = services
+}
+
+func (d *Device) SetHealthCheck(fn func() bool) {
+	d.healthCheck = fn
 }
 
 func (d *Device) CloseAllSessions() {
@@ -71,9 +78,19 @@ func (d *Device) Run(ctx context.Context) error {
 
 	d.logger.Debug("device started", "device_id", d.deviceID)
 
+	if err := sdnotify.Ready(); err != nil {
+		d.logger.Debug("sd-notify ready", "error", err)
+	}
+
+	go sdnotify.RunWatchdog(ctx, d.healthCheck)
+
 	<-ctx.Done()
 
 	d.logger.Debug("device shutting down")
+
+	if err := sdnotify.Stopping(); err != nil {
+		d.logger.Debug("sd-notify stopping", "error", err)
+	}
 	d.manager.CloseAll()
 
 	d.transport.Unsubscribe(controlFilter, dataFilter)

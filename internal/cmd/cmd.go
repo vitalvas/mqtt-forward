@@ -86,6 +86,7 @@ func newDeviceCmd() *cobra.Command {
 			defer transport.Close()
 
 			dev = device.New(transport, cfg.DeviceID, logger)
+			dev.SetHealthCheck(transport.IsConnected)
 
 			if cfg.IsAWSIoT() {
 				dev.SetTunnelServices(cfg.ParseTunnelServices())
