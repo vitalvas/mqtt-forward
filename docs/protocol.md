@@ -5,16 +5,16 @@
 All messages use QoS 1. Topic structure:
 
 ```
-tunnel/{device_id}/in/control           -- control messages to device
-tunnel/{device_id}/in/data/{session_id} -- data frames to device
-tunnel/{device_id}/out/control          -- control messages from device
-tunnel/{device_id}/out/data/{session_id} -- data frames from device
+tunnel/{device_id}/in/control           - control messages to device
+tunnel/{device_id}/in/data/{session_id} - data frames to device
+tunnel/{device_id}/out/control          - control messages from device
+tunnel/{device_id}/out/data/{session_id} - data frames from device
 ```
 
-- `{device_id}` -- target device identifier
-- `in` -- messages directed to the device (client publishes, device subscribes)
-- `out` -- messages from the device (device publishes, client subscribes)
-- `{session_id}` -- UUID identifying a single tunnel session
+- `{device_id}` - target device identifier
+- `in` - messages directed to the device (client publishes, device subscribes)
+- `out` - messages from the device (device publishes, client subscribes)
+- `{session_id}` - UUID identifying a single tunnel session
 
 ### Subscription Patterns
 
@@ -32,7 +32,7 @@ tunnel/{device_id}/out/control
 tunnel/{device_id}/out/data/+
 ```
 
-No wildcard `#` subscriptions are used -- all patterns are strict and ACL-friendly.
+No wildcard `#` subscriptions are used - all patterns are strict and ACL-friendly.
 
 ### Broker ACL Example
 
