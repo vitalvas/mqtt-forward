@@ -29,10 +29,6 @@ nfpms:
   - id: mqtt-forward
     package_name: mqtt-forward
     maintainer: vitalvas
-    vendor: vitalvas
-    homepage: https://github.com/vitalvas/mqtt-forward
-    description: MQTT Forward Device Agent
-    license: MIT
     formats:
       - deb
     contents:
