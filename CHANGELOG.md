@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.1](https://github.com/vitalvas/mqtt-forward/compare/v0.1.0...v0.1.1) (2026-05-08)
+
+
+### Bug Fixes
+
+* use /etc/default/mqtt-forward for environment file ([8d7cbd2](https://github.com/vitalvas/mqtt-forward/commit/8d7cbd29cc4122c68dc5740a6c91e81f58f73c67))
+
 ## [0.1.0](https://github.com/vitalvas/mqtt-forward/compare/v0.0.1...v0.1.0) (2026-05-08)
 
 
