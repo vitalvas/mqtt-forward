@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0](https://github.com/vitalvas/mqtt-forward/compare/v0.5.0...v0.6.0) (2026-05-08)
+
+
+### Features
+
+* drop AWS IoT Secure Tunneling support ([1ca6b80](https://github.com/vitalvas/mqtt-forward/commit/1ca6b80b5bc9318a608c4589401dffc0bc45e681))
+
 ## [0.5.0](https://github.com/vitalvas/mqtt-forward/compare/v0.4.0...v0.5.0) (2026-05-08)
 
 
