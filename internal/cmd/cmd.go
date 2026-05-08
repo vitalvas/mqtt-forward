@@ -39,8 +39,6 @@ func defaultConnectTransport(cfg *config.Config, logger *slog.Logger) (tunnel.Tr
 		return nil, fmt.Errorf("mqtt options: %w", err)
 	}
 
-	opts = append(opts, mqttv5.WithServerResolver(system.BrokerResolver(cfg.Broker, logger)))
-
 	mqttClient, err := mqttv5.Dial(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("mqtt connect: %w", err)

@@ -2,72 +2,57 @@ package system
 
 import (
 	"context"
-	"log/slog"
+	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func testLogger() *slog.Logger {
-	return slog.New(slog.DiscardHandler)
-}
+func TestInitResolver(t *testing.T) {
+	t.Run("sets_default_resolver", func(t *testing.T) {
+		original := net.DefaultResolver
+		defer func() { net.DefaultResolver = original }()
 
-func TestBrokerResolverInternal(t *testing.T) {
-	t.Run("resolve_localhost", func(t *testing.T) {
-		addrs, err := resolveHost(context.Background(), "localhost")
+		InitResolver()
+
+		assert.True(t, net.DefaultResolver.PreferGo)
+	})
+
+	t.Run("resolves_after_init", func(t *testing.T) {
+		original := net.DefaultResolver
+		defer func() { net.DefaultResolver = original }()
+
+		InitResolver()
+
+		addrs, err := net.DefaultResolver.LookupHost(context.Background(), "localhost")
 		require.NoError(t, err)
 		assert.NotEmpty(t, addrs)
+	})
+}
+
+func TestResolverDial(t *testing.T) {
+	t.Run("system_dns_works", func(t *testing.T) {
+		conn, err := resolverDial(context.Background(), "udp", "127.0.0.53:53")
+		if err != nil {
+			// system dns may not be available, skip
+			t.Skip("system DNS not available")
+		}
+
+		conn.Close()
+	})
+
+	t.Run("fallback_to_public", func(t *testing.T) {
+		conn, err := resolverDial(context.Background(), "udp", "192.0.2.1:53")
+		require.NoError(t, err)
+		conn.Close()
 	})
 
 	t.Run("cancelled_context", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := resolveHost(ctx, "example.com")
+		_, err := resolverDial(ctx, "udp", "127.0.0.53:53")
 		assert.Error(t, err)
-	})
-}
-
-func TestBrokerResolver(t *testing.T) {
-	t.Run("ip_address", func(t *testing.T) {
-		resolver := BrokerResolver("tls://1.2.3.4:8883", testLogger())
-
-		servers, err := resolver(context.Background())
-		require.NoError(t, err)
-		assert.Equal(t, []string{"tls://1.2.3.4:8883"}, servers)
-	})
-
-	t.Run("resolves_hostname", func(t *testing.T) {
-		resolver := BrokerResolver("tcp://localhost:1883", testLogger())
-
-		servers, err := resolver(context.Background())
-		require.NoError(t, err)
-		assert.NotEmpty(t, servers)
-
-		for _, s := range servers {
-			assert.Contains(t, s, "tcp://")
-			assert.Contains(t, s, ":1883")
-		}
-	})
-
-	t.Run("preserves_path", func(t *testing.T) {
-		resolver := BrokerResolver("wss://localhost:443/mqtt", testLogger())
-
-		servers, err := resolver(context.Background())
-		require.NoError(t, err)
-		assert.NotEmpty(t, servers)
-
-		for _, s := range servers {
-			assert.Contains(t, s, "/mqtt")
-		}
-	})
-
-	t.Run("invalid_url", func(t *testing.T) {
-		resolver := BrokerResolver("://bad", testLogger())
-
-		servers, err := resolver(context.Background())
-		require.NoError(t, err)
-		assert.Equal(t, []string{"://bad"}, servers)
 	})
 }
