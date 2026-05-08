@@ -35,7 +35,7 @@ type shadowState struct {
 
 type reportedState struct {
 	Version    string              `json:"version,omitempty"`
-	PublicIP   string              `json:"public_ip,omitempty"`
+	PublicIP   []string            `json:"public_ip,omitempty"`
 	Interfaces map[string][]string `json:"interfaces,omitempty"`
 }
 
@@ -62,7 +62,7 @@ func (r *Reporter) Run(ctx context.Context) {
 func (r *Reporter) report(ctx context.Context) {
 	state := reportedState{
 		Version:    r.cfg.Version,
-		PublicIP:   publicIP(ctx),
+		PublicIP:   publicIPs(ctx),
 		Interfaces: localInterfaces(),
 	}
 

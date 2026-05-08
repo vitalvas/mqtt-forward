@@ -34,13 +34,13 @@ func TestLocalInterfaces(t *testing.T) {
 	})
 }
 
-func TestPublicIP(t *testing.T) {
+func TestPublicIPs(t *testing.T) {
 	t.Run("cancelled_context", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		ip := publicIP(ctx)
-		assert.Empty(t, ip)
+		ips := publicIPs(ctx)
+		assert.Empty(t, ips)
 	})
 
 	t.Run("short_timeout", func(t *testing.T) {
@@ -49,8 +49,8 @@ func TestPublicIP(t *testing.T) {
 
 		time.Sleep(time.Millisecond)
 
-		ip := publicIP(ctx)
-		assert.Empty(t, ip)
+		ips := publicIPs(ctx)
+		assert.Empty(t, ips)
 	})
 }
 

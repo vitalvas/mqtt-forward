@@ -132,7 +132,7 @@ func TestShadowPayload(t *testing.T) {
 			State: shadowState{
 				Reported: reportedState{
 					Version:  "1.2.3",
-					PublicIP: "203.0.113.1",
+					PublicIP: []string{"203.0.113.1", "2001:db8::1"},
 					Interfaces: map[string][]string{
 						"eth0": {"192.168.1.10/24"},
 					},
@@ -153,7 +153,12 @@ func TestShadowPayload(t *testing.T) {
 		require.True(t, ok)
 
 		assert.Equal(t, "1.2.3", reported["version"])
-		assert.Equal(t, "203.0.113.1", reported["public_ip"])
+
+		publicIPs, ok := reported["public_ip"].([]any)
+		require.True(t, ok)
+		assert.Len(t, publicIPs, 2)
+		assert.Equal(t, "203.0.113.1", publicIPs[0])
+		assert.Equal(t, "2001:db8::1", publicIPs[1])
 
 		ifaces, ok := reported["interfaces"].(map[string]any)
 		require.True(t, ok)

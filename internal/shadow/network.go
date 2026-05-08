@@ -5,32 +5,44 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"slices"
+	"sort"
 	"strings"
 	"time"
 )
 
-const (
-	publicIPTimeout = 5 * time.Second
-	dnsResolver     = "resolver1.opendns.com:53"
-	dnsQuery        = "myip.opendns.com"
-)
+const publicIPTimeout = 5 * time.Second
 
 var publicIPURLs = []string{
 	"https://checkip.amazonaws.com/",
 	"http://whatismyip.akamai.com/",
 }
 
-func publicIP(ctx context.Context) string {
+func publicIPs(ctx context.Context) []string {
 	ctx, cancel := context.WithTimeout(ctx, publicIPTimeout)
 	defer cancel()
 
+	var result []string
+
 	for _, url := range publicIPURLs {
 		if ip := publicIPHTTP(ctx, url); ip != "" {
-			return ip
+			if !slices.Contains(result, ip) {
+				result = append(result, ip)
+			}
+
+			break
 		}
 	}
 
-	return publicIPDNS(ctx)
+	for _, ip := range publicIPDNS(ctx) {
+		if !slices.Contains(result, ip) {
+			result = append(result, ip)
+		}
+	}
+
+	sort.Strings(result)
+
+	return result
 }
 
 func publicIPHTTP(ctx context.Context, url string) string {
@@ -59,21 +71,63 @@ func publicIPHTTP(ctx context.Context, url string) string {
 	return strings.TrimSpace(string(body))
 }
 
-func publicIPDNS(ctx context.Context) string {
+func publicIPDNS(ctx context.Context) []string {
+	var result []string
+
+	if ip := publicIPDNSOpendns(ctx); ip != "" {
+		result = append(result, ip)
+	}
+
+	for _, ip := range publicIPDNSGoogle(ctx) {
+		if !slices.Contains(result, ip) {
+			result = append(result, ip)
+		}
+	}
+
+	return result
+}
+
+func publicIPDNSOpendns(ctx context.Context) string {
 	resolver := &net.Resolver{
 		PreferGo: true,
 		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			dialer := net.Dialer{Timeout: publicIPTimeout}
-			return dialer.DialContext(ctx, "udp", dnsResolver)
+			return dialer.DialContext(ctx, "udp", "resolver1.opendns.com:53")
 		},
 	}
 
-	addrs, err := resolver.LookupHost(ctx, dnsQuery)
+	addrs, err := resolver.LookupHost(ctx, "myip.opendns.com")
 	if err != nil || len(addrs) == 0 {
 		return ""
 	}
 
 	return addrs[0]
+}
+
+func publicIPDNSGoogle(ctx context.Context) []string {
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
+			dialer := net.Dialer{Timeout: publicIPTimeout}
+			return dialer.DialContext(ctx, "udp", "ns1.google.com:53")
+		},
+	}
+
+	records, err := resolver.LookupTXT(ctx, "o-o.myaddr.l.google.com")
+	if err != nil {
+		return nil
+	}
+
+	var result []string
+
+	for _, r := range records {
+		ip := strings.TrimSpace(r)
+		if net.ParseIP(ip) != nil {
+			result = append(result, ip)
+		}
+	}
+
+	return result
 }
 
 func localInterfaces() map[string][]string {

@@ -17,9 +17,9 @@ $aws/things/{device_id}/shadow/update
   "state": {
     "reported": {
       "version": "1.2.3",
-      "public_ip": "203.0.113.1",
+      "public_ip": ["203.0.113.1", "2001:db8::1"],
       "interfaces": {
-        "eth0": ["192.168.1.10/24"],
+        "eth0": ["192.168.1.10/24", "2001:db8::1/64"],
         "wlan0": ["10.0.0.5/16"]
       }
     }
@@ -30,7 +30,7 @@ $aws/things/{device_id}/shadow/update
 | Field | Description |
 |-------|-------------|
 | `version` | Application version (set at build time) |
-| `public_ip` | Public IP resolved via HTTP (checkip.amazonaws.com) and DNS (myip.opendns.com) |
+| `public_ip` | Public IPv4 (via HTTP checkip.amazonaws.com) and IPv6 (via DNS myip.opendns.com) |
 | `interfaces` | Non-loopback network interfaces with their addresses |
 
 ## Broker ACL
