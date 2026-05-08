@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/vitalvas/mqtt-forward/compare/v0.3.0...v0.3.1) (2026-05-08)
+
+
+### Bug Fixes
+
+* override net.DefaultResolver with public DNS fallback ([1ee13f9](https://github.com/vitalvas/mqtt-forward/commit/1ee13f9aef3c2a68d90e416d498022cc231c74b7))
+
 ## [0.3.0](https://github.com/vitalvas/mqtt-forward/compare/v0.2.0...v0.3.0) (2026-05-08)
 
 
