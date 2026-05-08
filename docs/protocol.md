@@ -55,6 +55,10 @@ topic write tunnel/d1/in/data/+
 topic read tunnel/d1/out/control
 topic read tunnel/d1/out/data/+
 
+# Client: status command (broadcast ping and collect responses)
+topic write tunnel/__shared__/ping
+topic read tunnel/+/out/control
+
 # Device d1: subscribe to incoming requests
 topic read tunnel/d1/in/control
 topic read tunnel/d1/in/data/+
@@ -64,7 +68,8 @@ topic read tunnel/__shared__/+
 topic write tunnel/d1/out/control
 topic write tunnel/d1/out/data/+
 
-# Device d1: AWS IoT device shadow (when using AWS IoT Core)
+# Device d1: AWS IoT (when using AWS IoT Core)
+topic read $aws/things/d1/tunnels/notify
 topic write $aws/things/d1/shadow/update
 ```
 
