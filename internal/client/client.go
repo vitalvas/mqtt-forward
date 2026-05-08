@@ -482,7 +482,7 @@ func (c *Client) RunShell(ctx context.Context) error {
 	return c.runShell(ctx)
 }
 
-func (c *Client) handleControl(topic string, payload []byte) {
+func (c *Client) handleControl(_ string, payload []byte) {
 	var msg tunnel.ControlMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
 		c.logger.Error("unmarshal control", "error", err)

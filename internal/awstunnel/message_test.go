@@ -104,7 +104,9 @@ func TestEncodeDecodeFrame(t *testing.T) {
 		frame2, err := EncodeFrame(msg2)
 		require.NoError(t, err)
 
-		combined := append(frame1, frame2...)
+		combined := make([]byte, 0, len(frame1)+len(frame2))
+		combined = append(combined, frame1...)
+		combined = append(combined, frame2...)
 
 		decoded1, consumed1, err := DecodeFrame(combined)
 		require.NoError(t, err)

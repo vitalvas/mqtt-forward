@@ -81,7 +81,7 @@ func (d *Device) Run(ctx context.Context) error {
 
 	if d.tunnelServices != nil {
 		notifyTopic := fmt.Sprintf("$aws/things/%s/tunnels/notify", d.deviceID)
-		if err := d.transport.Subscribe(notifyTopic, func(topic string, payload []byte) {
+		if err := d.transport.Subscribe(notifyTopic, func(_ string, payload []byte) {
 			d.handleTunnelNotify(ctx, payload)
 		}); err != nil {
 			return fmt.Errorf("subscribe tunnel notify: %w", err)
@@ -183,7 +183,7 @@ func (d *Device) handleTunnelNotify(ctx context.Context, payload []byte) {
 	d.logger.Debug("secure tunnel proxy started", "region", notif.Region, "services", notif.Services)
 }
 
-func (d *Device) handleControl(topic string, payload []byte) {
+func (d *Device) handleControl(_ string, payload []byte) {
 	var msg tunnel.ControlMessage
 	if err := json.Unmarshal(payload, &msg); err != nil {
 		d.logger.Error("unmarshal control message", "error", err)

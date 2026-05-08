@@ -51,7 +51,7 @@ func NewRootCmd() *cobra.Command {
 		Use:          "mqtt-forward",
 		Short:        "TCP and shell tunnel over MQTT",
 		SilenceUsage: true,
-		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			return config.Load(&cfg)
 		},
 	}
@@ -66,7 +66,7 @@ func newDeviceCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "device",
 		Short: "Run in device mode (accept tunnel requests)",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger := xlogger.New(xlogger.Config{
 				Level:   cfg.LogLevel,
 				LogType: "json",
@@ -152,7 +152,7 @@ func newClientTCPCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "tcp",
 		Short: "Forward TCP connections through MQTT tunnel",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger := xlogger.New(xlogger.Config{
 				Level:   cfg.LogLevel,
 				LogType: "json",
@@ -209,7 +209,7 @@ func newClientSOCKS5Cmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "socks5",
 		Short: "Run SOCKS5 proxy through MQTT tunnel",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger := xlogger.New(xlogger.Config{
 				Level:   cfg.LogLevel,
 				LogType: "json",
@@ -261,7 +261,7 @@ func newClientShellCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "shell",
 		Short: "Open interactive shell on device through MQTT tunnel",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger := xlogger.New(xlogger.Config{
 				Level:   cfg.LogLevel,
 				LogType: "json",
@@ -346,7 +346,7 @@ func newClientExecCmd() *cobra.Command {
 				}
 
 				// Keep intercepting signals to prevent default handler from killing the process
-				for range sigCh {
+				for range sigCh { //nolint:revive // intentionally draining signals
 				}
 			}()
 
@@ -383,7 +383,7 @@ func newClientPingCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "ping",
 		Short: "Test latency and availability of a device",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger := xlogger.New(xlogger.Config{
 				Level:   cfg.LogLevel,
 				LogType: "json",
@@ -424,7 +424,7 @@ func newClientStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Discover online devices",
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, _ []string) error {
 			logger := xlogger.New(xlogger.Config{
 				Level:   cfg.LogLevel,
 				LogType: "json",

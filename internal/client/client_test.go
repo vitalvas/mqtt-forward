@@ -158,6 +158,48 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
 }
 
+// ackAndCloseSession is a test helper that waits for an open message, sends an ack,
+// then sends a close message with an optional error after closeDelay.
+func ackAndCloseSession(mt *mockTransport, deviceID string, closeDelay time.Duration, closeError string) {
+	time.Sleep(100 * time.Millisecond)
+
+	msgs := mt.getPublished()
+	var openMsg *tunnel.ControlMessage
+
+	for _, msg := range msgs {
+		if msg.Topic == tunnel.InControlTopic(deviceID) {
+			var cm tunnel.ControlMessage
+			if err := json.Unmarshal(msg.Payload, &cm); err == nil && cm.Type == tunnel.MessageTypeOpen {
+				openMsg = &cm
+			}
+		}
+	}
+
+	if openMsg == nil {
+		return
+	}
+
+	ack := tunnel.ControlMessage{
+		Type:      tunnel.MessageTypeOpenAck,
+		SessionID: openMsg.SessionID,
+		Success:   true,
+	}
+
+	ackData, _ := json.Marshal(ack)
+	mt.deliver(tunnel.OutControlTopic(deviceID), ackData)
+
+	time.Sleep(closeDelay)
+
+	closeMsg := tunnel.ControlMessage{
+		Type:      tunnel.MessageTypeClose,
+		SessionID: openMsg.SessionID,
+		Error:     closeError,
+	}
+
+	closeData, _ := json.Marshal(closeMsg)
+	mt.deliver(tunnel.OutControlTopic(deviceID), closeData)
+}
+
 func TestClientExec(t *testing.T) {
 	t.Run("successful_exec", func(t *testing.T) {
 		mt := newMockTransport("client-1")
@@ -327,43 +369,7 @@ func TestClientExec(t *testing.T) {
 		var buf bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
-
-			msgs := mt.getPublished()
-			var openMsg *tunnel.ControlMessage
-
-			for _, msg := range msgs {
-				if msg.Topic == tunnel.InControlTopic("device-1") {
-					var cm tunnel.ControlMessage
-					if err := json.Unmarshal(msg.Payload, &cm); err == nil && cm.Type == tunnel.MessageTypeOpen {
-						openMsg = &cm
-					}
-				}
-			}
-
-			if openMsg == nil {
-				return
-			}
-
-			ack := tunnel.ControlMessage{
-				Type:      tunnel.MessageTypeOpenAck,
-				SessionID: openMsg.SessionID,
-				Success:   true,
-			}
-
-			ackData, _ := json.Marshal(ack)
-			mt.deliver(tunnel.OutControlTopic("device-1"), ackData)
-
-			time.Sleep(50 * time.Millisecond)
-
-			closeMsg := tunnel.ControlMessage{
-				Type:      tunnel.MessageTypeClose,
-				SessionID: openMsg.SessionID,
-				Error:     "something went wrong",
-			}
-
-			closeData, _ := json.Marshal(closeMsg)
-			mt.deliver(tunnel.OutControlTopic("device-1"), closeData)
+			ackAndCloseSession(mt, "device-1", 50*time.Millisecond, "something went wrong")
 		}()
 
 		exitCode, err := c.RunExec(ctx, "test", &buf)
@@ -608,7 +614,7 @@ func TestClientHandleData(t *testing.T) {
 		// Should not panic
 	})
 
-	t.Run("data_invalid_topic", func(t *testing.T) {
+	t.Run("data_invalid_topic", func(_ *testing.T) {
 		mt := newMockTransport("client-1")
 		c := New(mt, "device-1", testLogger())
 
@@ -913,42 +919,7 @@ func TestClientExecContextTimeout(t *testing.T) {
 		var buf bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
-
-			msgs := mt.getPublished()
-			var openMsg *tunnel.ControlMessage
-
-			for _, msg := range msgs {
-				if msg.Topic == tunnel.InControlTopic("device-1") {
-					var cm tunnel.ControlMessage
-					if err := json.Unmarshal(msg.Payload, &cm); err == nil && cm.Type == tunnel.MessageTypeOpen {
-						openMsg = &cm
-					}
-				}
-			}
-
-			if openMsg == nil {
-				return
-			}
-
-			ack := tunnel.ControlMessage{
-				Type:      tunnel.MessageTypeOpenAck,
-				SessionID: openMsg.SessionID,
-				Success:   true,
-			}
-
-			ackData, _ := json.Marshal(ack)
-			mt.deliver(tunnel.OutControlTopic("device-1"), ackData)
-
-			time.Sleep(50 * time.Millisecond)
-
-			closeMsg := tunnel.ControlMessage{
-				Type:      tunnel.MessageTypeClose,
-				SessionID: openMsg.SessionID,
-			}
-
-			closeData, _ := json.Marshal(closeMsg)
-			mt.deliver(tunnel.OutControlTopic("device-1"), closeData)
+			ackAndCloseSession(mt, "device-1", 50*time.Millisecond, "")
 		}()
 
 		exitCode, err := c.RunExec(ctx, "test", &buf)
@@ -1014,12 +985,13 @@ func socks5Connect(conn net.Conn, target string, port uint16) {
 	conn.Read(resp)
 
 	// CONNECT request with domain address
-	buf := []byte{socks5.Version5, socks5.CmdConnect, 0x00, socks5.AddrTypeDomain}
-	buf = append(buf, byte(len(target)))
-	buf = append(buf, []byte(target)...)
-
 	portBuf := make([]byte, 2)
 	binary.BigEndian.PutUint16(portBuf, port)
+
+	buf := make([]byte, 0, 4+1+len(target)+2)
+	buf = append(buf, socks5.Version5, socks5.CmdConnect, 0x00, socks5.AddrTypeDomain)
+	buf = append(buf, byte(len(target)))
+	buf = append(buf, []byte(target)...)
 	buf = append(buf, portBuf...)
 
 	conn.Write(buf)
@@ -1226,7 +1198,7 @@ func TestClientSOCKS5(t *testing.T) {
 }
 
 func TestClientCloseAllSessions(t *testing.T) {
-	t.Run("close_all_sessions", func(t *testing.T) {
+	t.Run("close_all_sessions", func(_ *testing.T) {
 		mt := newMockTransport("client-1")
 		c := New(mt, "device-1", testLogger())
 

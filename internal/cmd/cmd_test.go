@@ -33,7 +33,7 @@ func newMockTransport(clientID string) *mockTransport {
 	}
 }
 
-func (m *mockTransport) Publish(msg tunnel.PubMessage) error { return nil }
+func (m *mockTransport) Publish(_ tunnel.PubMessage) error { return nil }
 
 func (m *mockTransport) Subscribe(filter string, handler tunnel.MessageHandler) error {
 	m.mu.Lock()
@@ -99,7 +99,7 @@ func setFailingConnector(t *testing.T) {
 		connectTransport = original
 	})
 
-	connectTransport = func(c *config.Config, _ *slog.Logger) (tunnel.Transport, error) {
+	connectTransport = func(_ *config.Config, _ *slog.Logger) (tunnel.Transport, error) {
 		return nil, fmt.Errorf("connection refused")
 	}
 }
@@ -115,7 +115,7 @@ func TestNewRootCmd(t *testing.T) {
 	t.Run("has_subcommands", func(t *testing.T) {
 		cmd := NewRootCmd()
 
-		var names []string
+		names := make([]string, 0, len(cmd.Commands()))
 		for _, sub := range cmd.Commands() {
 			names = append(names, sub.Use)
 		}
@@ -142,7 +142,7 @@ func TestCommands(t *testing.T) {
 		assert.Equal(t, "client", cmd.Use)
 		assert.Len(t, cmd.Commands(), 6)
 
-		var names []string
+		names := make([]string, 0, len(cmd.Commands()))
 		for _, sub := range cmd.Commands() {
 			names = append(names, sub.Name())
 		}
@@ -415,7 +415,6 @@ func TestCommandsRunE(t *testing.T) {
 		err := cmd.Execute()
 		assert.NoError(t, err)
 	})
-
 }
 
 func TestNewEventHandler(t *testing.T) {

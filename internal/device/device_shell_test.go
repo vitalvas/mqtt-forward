@@ -82,7 +82,7 @@ func TestDeviceShell(t *testing.T) {
 		assert.Equal(t, 0, dev.manager.Count())
 	})
 
-	t.Run("resize_nonexistent_session", func(t *testing.T) {
+	t.Run("resize_nonexistent_session", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 

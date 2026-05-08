@@ -10,18 +10,20 @@ import (
 )
 
 func buildGreeting(version byte, methods ...byte) []byte {
-	buf := []byte{version, byte(len(methods))}
+	buf := make([]byte, 0, 2+len(methods))
+	buf = append(buf, version, byte(len(methods)))
 	buf = append(buf, methods...)
 
 	return buf
 }
 
 func buildConnectRequest(addrType byte, addr []byte, port uint16) []byte {
-	buf := []byte{Version5, CmdConnect, 0x00, addrType}
-	buf = append(buf, addr...)
-
 	portBuf := make([]byte, 2)
 	binary.BigEndian.PutUint16(portBuf, port)
+
+	buf := make([]byte, 0, 4+len(addr)+2)
+	buf = append(buf, Version5, CmdConnect, 0x00, addrType)
+	buf = append(buf, addr...)
 	buf = append(buf, portBuf...)
 
 	return buf

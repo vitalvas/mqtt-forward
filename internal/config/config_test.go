@@ -231,7 +231,7 @@ func TestConfig(t *testing.T) {
 		tmpDir := t.TempDir()
 		caPath := filepath.Join(tmpDir, "bad-ca.pem")
 
-		require.NoError(t, os.WriteFile(caPath, []byte("not a cert"), 0600))
+		require.NoError(t, os.WriteFile(caPath, []byte("not a cert"), 0o600))
 
 		cfg := Config{
 			Broker:    "tcp://localhost:1883",
@@ -248,7 +248,6 @@ func TestConfig(t *testing.T) {
 
 		assert.Equal(t, 10*time.Second, cfg.ConnectTimeout())
 	})
-
 }
 
 func TestParseTunnelServices(t *testing.T) {
@@ -366,7 +365,7 @@ func generateTestCA(t *testing.T, path string) {
 	require.NoError(t, err)
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	require.NoError(t, os.WriteFile(path, certPEM, 0600))
+	require.NoError(t, os.WriteFile(path, certPEM, 0o600))
 }
 
 func generateTestCert(t *testing.T, certPath, keyPath string) {
@@ -386,11 +385,11 @@ func generateTestCert(t *testing.T, certPath, keyPath string) {
 	require.NoError(t, err)
 
 	certPEM := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: certDER})
-	require.NoError(t, os.WriteFile(certPath, certPEM, 0600))
+	require.NoError(t, os.WriteFile(certPath, certPEM, 0o600))
 
 	keyDER, err := x509.MarshalECPrivateKey(key)
 	require.NoError(t, err)
 
 	keyPEM := pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: keyDER})
-	require.NoError(t, os.WriteFile(keyPath, keyPEM, 0600))
+	require.NoError(t, os.WriteFile(keyPath, keyPEM, 0o600))
 }

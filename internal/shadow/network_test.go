@@ -64,7 +64,7 @@ func TestPublicIPHTTP(t *testing.T) {
 	})
 
 	t.Run("success", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			fmt.Fprintln(w, "203.0.113.1")
 		}))
 		defer srv.Close()
@@ -78,7 +78,7 @@ func TestPublicIPHTTP(t *testing.T) {
 	})
 
 	t.Run("server_error", func(t *testing.T) {
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		}))
 		defer srv.Close()

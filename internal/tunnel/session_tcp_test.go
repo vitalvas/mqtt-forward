@@ -206,7 +206,7 @@ func TestTCPSession(t *testing.T) {
 		assert.True(t, ackFound, "should send ack message after receiving enough data")
 	})
 
-	t.Run("update_flow_control", func(t *testing.T) {
+	t.Run("update_flow_control", func(_ *testing.T) {
 		mt := NewMockTransport("device-1")
 		_, connB := net.Pipe()
 		defer connB.Close()

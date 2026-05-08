@@ -60,7 +60,7 @@ func (t *MQTTTransport) Publish(msg PubMessage) error {
 func (t *MQTTTransport) Subscribe(filter string, handler MessageHandler) error {
 	t.router.Handle(func(msg *mqttv5.Message) {
 		handler(msg.Topic, msg.Payload)
-	}, router.WithTopic(filter), router.WithSubscribeQoS(byte(defaultQoS)))
+	}, router.WithTopic(filter), router.WithSubscribeQoS(defaultQoS))
 
 	return nil
 }
@@ -79,7 +79,7 @@ func (t *MQTTTransport) SubscribeAll() error {
 	}
 
 	for _, f := range filters {
-		if err := t.client.Subscribe(f, byte(defaultQoS), wrappedHandler); err != nil {
+		if err := t.client.Subscribe(f, defaultQoS, wrappedHandler); err != nil {
 			t.logger.Error("subscribe failed", "filter", f, "error", err)
 			return err
 		}

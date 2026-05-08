@@ -156,7 +156,7 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
 }
 
-func TestDevice(t *testing.T) {
+func TestDevice(t *testing.T) { //nolint:gocyclo // test function with many subtests
 	t.Run("exec_session", func(t *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
@@ -463,7 +463,7 @@ func TestDevice(t *testing.T) {
 		assert.Equal(t, 1, dev.manager.Count())
 	})
 
-	t.Run("handle_data_unknown_session", func(t *testing.T) {
+	t.Run("handle_data_unknown_session", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 
@@ -481,7 +481,7 @@ func TestDevice(t *testing.T) {
 		// Should not panic
 	})
 
-	t.Run("handle_data_invalid_frame", func(t *testing.T) {
+	t.Run("handle_data_invalid_frame", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 
@@ -512,7 +512,7 @@ func TestDevice(t *testing.T) {
 		// Should not panic
 	})
 
-	t.Run("handle_control_invalid_json", func(t *testing.T) {
+	t.Run("handle_control_invalid_json", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 
@@ -529,7 +529,7 @@ func TestDevice(t *testing.T) {
 		// Should not panic
 	})
 
-	t.Run("handle_unknown_control_type", func(t *testing.T) {
+	t.Run("handle_unknown_control_type", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 
@@ -552,7 +552,7 @@ func TestDevice(t *testing.T) {
 		// Should not panic
 	})
 
-	t.Run("close_nonexistent_session", func(t *testing.T) {
+	t.Run("close_nonexistent_session", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 
@@ -575,7 +575,7 @@ func TestDevice(t *testing.T) {
 		// Should not panic
 	})
 
-	t.Run("ack_nonexistent_session", func(t *testing.T) {
+	t.Run("ack_nonexistent_session", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 
@@ -689,7 +689,7 @@ func TestDevice(t *testing.T) {
 }
 
 func TestDeviceCloseAllSessions(t *testing.T) {
-	t.Run("close_empty", func(t *testing.T) {
+	t.Run("close_empty", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 
@@ -932,7 +932,7 @@ func TestDeviceHandleTunnelNotify(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	})
 
-	t.Run("invalid_json", func(t *testing.T) {
+	t.Run("invalid_json", func(_ *testing.T) {
 		mt := newMockTransport("device-1")
 		dev := New(mt, "device-1", testLogger())
 		dev.SetTunnelServices(map[string]string{"SSH": "localhost:22"})

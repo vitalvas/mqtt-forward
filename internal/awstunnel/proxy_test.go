@@ -237,7 +237,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_SESSION_RESET}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.NoError(t, err)
 	})
 
@@ -248,7 +248,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_STREAM_RESET, StreamId: 1}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.NoError(t, err)
 	})
 
@@ -259,7 +259,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_CONNECTION_RESET, StreamId: 1}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.NoError(t, err)
 	})
 
@@ -270,7 +270,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: 99, Ignorable: true}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.NoError(t, err)
 	})
 
@@ -281,7 +281,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: 99}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.Error(t, err)
 	})
 
@@ -292,7 +292,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_STREAM_START, StreamId: 0, ServiceId: "SSH"}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.Error(t, err)
 	})
 
@@ -303,7 +303,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_STREAM_START, StreamId: 1, ServiceId: "UNKNOWN"}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.Error(t, err)
 	})
 
@@ -314,7 +314,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_CONNECTION_START, StreamId: 0, ServiceId: "SSH"}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.Error(t, err)
 	})
 
@@ -325,7 +325,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_CONNECTION_START, StreamId: 1, ServiceId: "UNKNOWN"}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.Error(t, err)
 	})
 
@@ -336,7 +336,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_SERVICE_IDS, AvailableServiceIds: []string{"SSH"}}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.NoError(t, err)
 	})
 
@@ -347,7 +347,7 @@ func TestProxyHandleMessage(t *testing.T) {
 		})
 
 		msg := &pb.Message{Type: pb.Message_DATA, StreamId: 1, Payload: []byte("data")}
-		err := p.handleMessage(nil, msg)
+		err := p.handleMessage(context.Background(), msg)
 		assert.NoError(t, err)
 	})
 }
@@ -392,7 +392,7 @@ func TestProxySendMessage(t *testing.T) {
 }
 
 func TestProxySendStreamReset(t *testing.T) {
-	t.Run("nil_conn", func(t *testing.T) {
+	t.Run("nil_conn", func(_ *testing.T) {
 		p := New(ProxyConfig{
 			Services: map[string]string{"SSH": "localhost:22"},
 			Logger:   testLogger(),
@@ -403,7 +403,7 @@ func TestProxySendStreamReset(t *testing.T) {
 }
 
 func TestProxySendConnectionReset(t *testing.T) {
-	t.Run("nil_conn", func(t *testing.T) {
+	t.Run("nil_conn", func(_ *testing.T) {
 		p := New(ProxyConfig{
 			Services: map[string]string{"SSH": "localhost:22"},
 			Logger:   testLogger(),
@@ -659,7 +659,9 @@ func TestProxyReadLoopCorruptFrame(t *testing.T) {
 		validFrame, _ := EncodeFrame(validMsg)
 
 		// Send both frames in one message, then close
-		combined := append(corruptFrame, validFrame...)
+		combined := make([]byte, 0, len(corruptFrame)+len(validFrame))
+		combined = append(combined, corruptFrame...)
+		combined = append(combined, validFrame...)
 
 		ws := &mockWSConn{
 			messages: [][]byte{combined},

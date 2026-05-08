@@ -12,6 +12,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func assertSendsNotification(t *testing.T, notifyFunc func() error, expected string) {
+	t.Helper()
+
+	sockPath := filepath.Join(t.TempDir(), "notify.sock")
+
+	conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
+		Name: sockPath,
+		Net:  "unixgram",
+	})
+	require.NoError(t, err)
+	defer conn.Close()
+
+	t.Setenv("NOTIFY_SOCKET", sockPath)
+
+	err = notifyFunc()
+	assert.NoError(t, err)
+
+	buf := make([]byte, 128)
+	n, err := conn.Read(buf)
+	require.NoError(t, err)
+	assert.Equal(t, expected, string(buf[:n]))
+}
+
 func TestReady(t *testing.T) {
 	t.Run("no_socket", func(t *testing.T) {
 		t.Setenv("NOTIFY_SOCKET", "")
@@ -21,24 +44,7 @@ func TestReady(t *testing.T) {
 	})
 
 	t.Run("sends_ready", func(t *testing.T) {
-		sockPath := filepath.Join(t.TempDir(), "notify.sock")
-
-		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
-			Name: sockPath,
-			Net:  "unixgram",
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		t.Setenv("NOTIFY_SOCKET", sockPath)
-
-		err = Ready()
-		assert.NoError(t, err)
-
-		buf := make([]byte, 128)
-		n, err := conn.Read(buf)
-		require.NoError(t, err)
-		assert.Equal(t, "READY=1", string(buf[:n]))
+		assertSendsNotification(t, Ready, "READY=1")
 	})
 
 	t.Run("invalid_socket", func(t *testing.T) {
@@ -58,24 +64,7 @@ func TestStopping(t *testing.T) {
 	})
 
 	t.Run("sends_stopping", func(t *testing.T) {
-		sockPath := filepath.Join(t.TempDir(), "notify.sock")
-
-		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
-			Name: sockPath,
-			Net:  "unixgram",
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		t.Setenv("NOTIFY_SOCKET", sockPath)
-
-		err = Stopping()
-		assert.NoError(t, err)
-
-		buf := make([]byte, 128)
-		n, err := conn.Read(buf)
-		require.NoError(t, err)
-		assert.Equal(t, "STOPPING=1", string(buf[:n]))
+		assertSendsNotification(t, Stopping, "STOPPING=1")
 	})
 }
 
@@ -88,24 +77,7 @@ func TestWatchdog(t *testing.T) {
 	})
 
 	t.Run("sends_watchdog", func(t *testing.T) {
-		sockPath := filepath.Join(t.TempDir(), "notify.sock")
-
-		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
-			Name: sockPath,
-			Net:  "unixgram",
-		})
-		require.NoError(t, err)
-		defer conn.Close()
-
-		t.Setenv("NOTIFY_SOCKET", sockPath)
-
-		err = Watchdog()
-		assert.NoError(t, err)
-
-		buf := make([]byte, 128)
-		n, err := conn.Read(buf)
-		require.NoError(t, err)
-		assert.Equal(t, "WATCHDOG=1", string(buf[:n]))
+		assertSendsNotification(t, Watchdog, "WATCHDOG=1")
 	})
 }
 

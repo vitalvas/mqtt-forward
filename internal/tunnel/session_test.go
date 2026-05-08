@@ -137,7 +137,7 @@ func TestSessionManager(t *testing.T) {
 		assert.Equal(t, 1, sm.Count())
 	})
 
-	t.Run("touch_nonexistent_session", func(t *testing.T) {
+	t.Run("touch_nonexistent_session", func(_ *testing.T) {
 		sm := NewSessionManager(testLogger())
 
 		sm.Touch("nonexistent")
@@ -236,7 +236,7 @@ func TestReorderBuffer(t *testing.T) {
 		assert.ErrorIs(t, err, ErrBufferFull)
 	})
 
-	t.Run("double_close", func(t *testing.T) {
+	t.Run("double_close", func(_ *testing.T) {
 		rb := NewReorderBuffer(4)
 
 		rb.Close()

@@ -162,7 +162,7 @@ func TestExecSession(t *testing.T) {
 }
 
 func TestExecSessionHandleData(t *testing.T) {
-	t.Run("handle_data", func(t *testing.T) {
+	t.Run("handle_data", func(_ *testing.T) {
 		mt := NewMockTransport("device-1")
 		sess := NewExecSession(ExecSessionConfig{
 			ID:           "sess-hd",
@@ -177,7 +177,7 @@ func TestExecSessionHandleData(t *testing.T) {
 		sess.Close()
 	})
 
-	t.Run("handle_data_after_close", func(t *testing.T) {
+	t.Run("handle_data_after_close", func(_ *testing.T) {
 		mt := NewMockTransport("device-1")
 		sess := NewExecSession(ExecSessionConfig{
 			ID:           "sess-hdc",
@@ -192,7 +192,7 @@ func TestExecSessionHandleData(t *testing.T) {
 		sess.HandleData(0, []byte("input"))
 	})
 
-	t.Run("client_handle_data_after_close", func(t *testing.T) {
+	t.Run("client_handle_data_after_close", func(_ *testing.T) {
 		mt := NewMockTransport("client-1")
 		sess := NewExecClientSession("sess-chdc", mt, testLogger())
 
@@ -246,7 +246,7 @@ func TestExecClientSession(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("update_ack", func(t *testing.T) {
+	t.Run("update_ack", func(_ *testing.T) {
 		mt := NewMockTransport("client-1")
 		sess := NewExecClientSession("sess-4", mt, testLogger())
 

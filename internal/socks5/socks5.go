@@ -149,7 +149,8 @@ func SendSuccess(conn net.Conn, bindAddr net.Addr) error {
 	binary.BigEndian.PutUint16(portBuf, uint16(tcpAddr.Port))
 
 	if ip4 := tcpAddr.IP.To4(); ip4 != nil {
-		reply := []byte{Version5, ReplySuccess, 0x00, AddrTypeIPv4}
+		reply := make([]byte, 0, 4+len(ip4)+2)
+		reply = append(reply, Version5, ReplySuccess, 0x00, AddrTypeIPv4)
 		reply = append(reply, ip4...)
 		reply = append(reply, portBuf...)
 		_, err := conn.Write(reply)
@@ -158,7 +159,8 @@ func SendSuccess(conn net.Conn, bindAddr net.Addr) error {
 	}
 
 	ip6 := tcpAddr.IP.To16()
-	reply := []byte{Version5, ReplySuccess, 0x00, AddrTypeIPv6}
+	reply := make([]byte, 0, 4+len(ip6)+2)
+	reply = append(reply, Version5, ReplySuccess, 0x00, AddrTypeIPv6)
 	reply = append(reply, ip6...)
 	reply = append(reply, portBuf...)
 	_, err := conn.Write(reply)

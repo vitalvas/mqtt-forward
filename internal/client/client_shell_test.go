@@ -37,7 +37,7 @@ func TestClientShell(t *testing.T) {
 	})
 }
 
-func TestRunShellIO(t *testing.T) {
+func TestRunShellIO(t *testing.T) { //nolint:gocyclo // test function with many subtests
 	t.Run("successful_session_with_close", func(t *testing.T) {
 		mt := newMockTransport("client-1")
 		c := New(mt, "device-1", testLogger())
@@ -115,43 +115,7 @@ func TestRunShellIO(t *testing.T) {
 		var stderr bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
-
-			msgs := mt.getPublished()
-			var openMsg *tunnel.ControlMessage
-
-			for _, msg := range msgs {
-				if msg.Topic == tunnel.InControlTopic("device-1") {
-					var cm tunnel.ControlMessage
-					if err := json.Unmarshal(msg.Payload, &cm); err == nil && cm.Type == tunnel.MessageTypeOpen {
-						openMsg = &cm
-					}
-				}
-			}
-
-			if openMsg == nil {
-				return
-			}
-
-			ack := tunnel.ControlMessage{
-				Type:      tunnel.MessageTypeOpenAck,
-				SessionID: openMsg.SessionID,
-				Success:   true,
-			}
-
-			ackData, _ := json.Marshal(ack)
-			mt.deliver(tunnel.OutControlTopic("device-1"), ackData)
-
-			time.Sleep(50 * time.Millisecond)
-
-			closeMsg := tunnel.ControlMessage{
-				Type:      tunnel.MessageTypeClose,
-				SessionID: openMsg.SessionID,
-				Error:     "connection lost",
-			}
-
-			closeData, _ := json.Marshal(closeMsg)
-			mt.deliver(tunnel.OutControlTopic("device-1"), closeData)
+			ackAndCloseSession(mt, "device-1", 50*time.Millisecond, "connection lost")
 		}()
 
 		err := c.runShellIO(ctx, shellIO{
@@ -359,7 +323,7 @@ func TestRunShellIO(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		resizeDone := make(chan struct{}, 1)
-		resizeFunc := func(sessionID string) {
+		resizeFunc := func(_ string) {
 			select {
 			case resizeDone <- struct{}{}:
 			default:
@@ -367,42 +331,7 @@ func TestRunShellIO(t *testing.T) {
 		}
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
-
-			msgs := mt.getPublished()
-			var openMsg *tunnel.ControlMessage
-
-			for _, msg := range msgs {
-				if msg.Topic == tunnel.InControlTopic("device-1") {
-					var cm tunnel.ControlMessage
-					if err := json.Unmarshal(msg.Payload, &cm); err == nil && cm.Type == tunnel.MessageTypeOpen {
-						openMsg = &cm
-					}
-				}
-			}
-
-			if openMsg == nil {
-				return
-			}
-
-			ack := tunnel.ControlMessage{
-				Type:      tunnel.MessageTypeOpenAck,
-				SessionID: openMsg.SessionID,
-				Success:   true,
-			}
-
-			ackData, _ := json.Marshal(ack)
-			mt.deliver(tunnel.OutControlTopic("device-1"), ackData)
-
-			time.Sleep(100 * time.Millisecond)
-
-			closeMsg := tunnel.ControlMessage{
-				Type:      tunnel.MessageTypeClose,
-				SessionID: openMsg.SessionID,
-			}
-
-			closeData, _ := json.Marshal(closeMsg)
-			mt.deliver(tunnel.OutControlTopic("device-1"), closeData)
+			ackAndCloseSession(mt, "device-1", 100*time.Millisecond, "")
 		}()
 
 		err := c.runShellIO(ctx, shellIO{

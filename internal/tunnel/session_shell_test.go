@@ -90,7 +90,7 @@ func TestShellSession(t *testing.T) {
 		require.NoError(t, sess.Close())
 	})
 
-	t.Run("handle_data_error", func(t *testing.T) {
+	t.Run("handle_data_error", func(_ *testing.T) {
 		mt := NewMockTransport("device-1")
 		sess := NewShellSession("sess-hde", mt, OutControlTopic("device-1"), OutDataTopic("device-1", "sess-hde"), testLogger())
 

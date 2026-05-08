@@ -71,7 +71,7 @@ func publicIPHTTP(ctx context.Context) string {
 func publicIPDNS(ctx context.Context) string {
 	resolver := &net.Resolver{
 		PreferGo: true,
-		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+		Dial: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			dialer := net.Dialer{Timeout: publicIPTimeout}
 			return dialer.DialContext(ctx, "udp", dnsResolver)
 		},

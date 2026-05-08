@@ -189,10 +189,8 @@ func (s *ExecSession) Close() error {
 				time.Sleep(2 * time.Second)
 				syscall.Kill(-pgid, syscall.SIGKILL)
 			}()
-		} else {
-			if s.cancel != nil {
-				s.cancel()
-			}
+		} else if s.cancel != nil {
+			s.cancel()
 		}
 
 		s.reorder.Close()

@@ -123,7 +123,7 @@ func TestMockTransport(t *testing.T) {
 		mt := NewMockTransport("test-client")
 
 		var received []byte
-		err := mt.Subscribe("test/topic", func(topic string, payload []byte) {
+		err := mt.Subscribe("test/topic", func(_ string, payload []byte) {
 			received = payload
 		})
 		require.NoError(t, err)
@@ -136,7 +136,7 @@ func TestMockTransport(t *testing.T) {
 		mt := NewMockTransport("test-client")
 
 		called := false
-		err := mt.Subscribe("test/topic", func(topic string, payload []byte) {
+		err := mt.Subscribe("test/topic", func(_ string, _ []byte) {
 			called = true
 		})
 		require.NoError(t, err)
@@ -151,10 +151,10 @@ func TestMockTransport(t *testing.T) {
 	t.Run("subscribe_all", func(t *testing.T) {
 		mt := NewMockTransport("test-client")
 
-		err := mt.Subscribe("test/+/control", func(topic string, payload []byte) {})
+		err := mt.Subscribe("test/+/control", func(_ string, _ []byte) {})
 		require.NoError(t, err)
 
-		err = mt.Subscribe("test/+/data/+", func(topic string, payload []byte) {})
+		err = mt.Subscribe("test/+/data/+", func(_ string, _ []byte) {})
 		require.NoError(t, err)
 
 		err = mt.SubscribeAll()
