@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/vitalvas/mqtt-forward/compare/v0.3.2...v0.4.0) (2026-05-08)
+
+
+### Features
+
+* auto-detect TLS certificates for device mode ([abae487](https://github.com/vitalvas/mqtt-forward/commit/abae487fe074ed6082e96db322dcc625e90ec512))
+
 ## [0.3.2](https://github.com/vitalvas/mqtt-forward/compare/v0.3.1...v0.3.2) (2026-05-08)
 
 
