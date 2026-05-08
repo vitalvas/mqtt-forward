@@ -63,6 +63,9 @@ topic read tunnel/__shared__/+
 # Device d1: publish responses
 topic write tunnel/d1/out/control
 topic write tunnel/d1/out/data/+
+
+# Device d1: AWS IoT device shadow (when using AWS IoT Core)
+topic write $aws/things/d1/shadow/update
 ```
 
 ## Control Messages

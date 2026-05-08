@@ -11,6 +11,7 @@ import (
 
 	"github.com/vitalvas/mqtt-forward/internal/awstunnel"
 	"github.com/vitalvas/mqtt-forward/internal/sdnotify"
+	"github.com/vitalvas/mqtt-forward/internal/shadow"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 )
 
@@ -26,6 +27,8 @@ type Device struct {
 	proxyCancel context.CancelFunc
 
 	healthCheck func() bool
+	version     string
+	awsIoT      bool
 }
 
 func New(transport tunnel.Transport, deviceID string, logger *slog.Logger) *Device {
@@ -43,6 +46,14 @@ func (d *Device) SetTunnelServices(services map[string]string) {
 
 func (d *Device) SetHealthCheck(fn func() bool) {
 	d.healthCheck = fn
+}
+
+func (d *Device) SetVersion(v string) {
+	d.version = v
+}
+
+func (d *Device) SetAWSIoT(v bool) {
+	d.awsIoT = v
 }
 
 func (d *Device) CloseAllSessions() {
@@ -90,6 +101,17 @@ func (d *Device) Run(ctx context.Context) error {
 	}
 
 	go sdnotify.RunWatchdog(ctx, d.healthCheck)
+
+	if d.awsIoT {
+		reporter := shadow.NewReporter(shadow.ReporterConfig{
+			Transport: d.transport,
+			DeviceID:  d.deviceID,
+			Version:   d.version,
+			Logger:    d.logger,
+		})
+
+		go reporter.Run(ctx)
+	}
 
 	<-ctx.Done()
 

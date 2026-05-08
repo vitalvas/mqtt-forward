@@ -832,6 +832,33 @@ func TestDeviceSetTunnelServices(t *testing.T) {
 	})
 }
 
+func TestDeviceSetters(t *testing.T) {
+	t.Run("set_health_check", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		dev.SetHealthCheck(func() bool { return true })
+		assert.NotNil(t, dev.healthCheck)
+		assert.True(t, dev.healthCheck())
+	})
+
+	t.Run("set_version", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		dev.SetVersion("1.2.3")
+		assert.Equal(t, "1.2.3", dev.version)
+	})
+
+	t.Run("set_aws_iot", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		dev.SetAWSIoT(true)
+		assert.True(t, dev.awsIoT)
+	})
+}
+
 func TestDeviceHandleTunnelNotify(t *testing.T) {
 	t.Run("valid_notification", func(t *testing.T) {
 		mt := newMockTransport("device-1")

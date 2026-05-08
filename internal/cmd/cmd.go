@@ -21,7 +21,14 @@ import (
 	"github.com/vitalvas/mqttv5"
 )
 
-var cfg config.Config
+var (
+	cfg        config.Config
+	appVersion string
+)
+
+func SetVersion(v string) {
+	appVersion = v
+}
 
 var connectTransport func(cfg *config.Config, logger *slog.Logger) (tunnel.Transport, error) = defaultConnectTransport
 
@@ -87,8 +94,10 @@ func newDeviceCmd() *cobra.Command {
 
 			dev = device.New(transport, cfg.DeviceID, logger)
 			dev.SetHealthCheck(transport.IsConnected)
+			dev.SetVersion(appVersion)
 
 			if cfg.IsAWSIoT() {
+				dev.SetAWSIoT(true)
 				dev.SetTunnelServices(cfg.ParseTunnelServices())
 			}
 
