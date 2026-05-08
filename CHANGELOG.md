@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.3.0](https://github.com/vitalvas/mqtt-forward/compare/v0.2.0...v0.3.0) (2026-05-08)
+
+
+### Features
+
+* add DNS resolver with public DNS fallback for MQTT broker ([17a723d](https://github.com/vitalvas/mqtt-forward/commit/17a723df9c7f56fc2ad12826a19b0bed1098e0ca))
+
+
+### Bug Fixes
+
+* unexport resolveHost function ([a367cdd](https://github.com/vitalvas/mqtt-forward/commit/a367cdd242cadd93786aa66a01a6c5c18b2c9d61))
+
 ## [0.2.0](https://github.com/vitalvas/mqtt-forward/compare/v0.1.2...v0.2.0) (2026-05-08)
 
 
