@@ -30,7 +30,7 @@ func BrokerResolver(broker string, logger *slog.Logger) func(ctx context.Context
 			return []string{broker}, nil
 		}
 
-		addrs, err := ResolveHost(ctx, host)
+		addrs, err := resolveHost(ctx, host)
 		if err != nil {
 			return nil, fmt.Errorf("resolve %s: %w", host, err)
 		}
@@ -51,7 +51,7 @@ func BrokerResolver(broker string, logger *slog.Logger) func(ctx context.Context
 	}
 }
 
-func ResolveHost(ctx context.Context, host string) ([]string, error) {
+func resolveHost(ctx context.Context, host string) ([]string, error) {
 	ctx, cancel := context.WithTimeout(ctx, resolveTimeout)
 	defer cancel()
 

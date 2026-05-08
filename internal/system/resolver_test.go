@@ -13,9 +13,9 @@ func testLogger() *slog.Logger {
 	return slog.New(slog.DiscardHandler)
 }
 
-func TestResolveHost(t *testing.T) {
-	t.Run("localhost", func(t *testing.T) {
-		addrs, err := ResolveHost(context.Background(), "localhost")
+func TestBrokerResolverInternal(t *testing.T) {
+	t.Run("resolve_localhost", func(t *testing.T) {
+		addrs, err := resolveHost(context.Background(), "localhost")
 		require.NoError(t, err)
 		assert.NotEmpty(t, addrs)
 	})
@@ -24,7 +24,7 @@ func TestResolveHost(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := ResolveHost(ctx, "example.com")
+		_, err := resolveHost(ctx, "example.com")
 		assert.Error(t, err)
 	})
 }
