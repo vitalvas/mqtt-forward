@@ -1,4 +1,4 @@
-package sdnotify
+package system
 
 import (
 	"context"
@@ -112,7 +112,7 @@ func TestRunWatchdog(t *testing.T) {
 	})
 
 	t.Run("skips_when_unhealthy", func(t *testing.T) {
-		sockPath := filepath.Join("/tmp", "sdnotify-unhealthy.sock")
+		sockPath := filepath.Join("/tmp", "system-unhealthy.sock")
 		os.Remove(sockPath)
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
@@ -135,11 +135,11 @@ func TestRunWatchdog(t *testing.T) {
 		conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
 
 		_, err = conn.Read(buf)
-		assert.Error(t, err) // timeout, nothing sent
+		assert.Error(t, err)
 	})
 
 	t.Run("sends_periodic_watchdog", func(t *testing.T) {
-		sockPath := filepath.Join("/tmp", "sdnotify-test.sock")
+		sockPath := filepath.Join("/tmp", "system-watchdog.sock")
 		os.Remove(sockPath)
 
 		conn, err := net.ListenUnixgram("unixgram", &net.UnixAddr{
@@ -151,7 +151,7 @@ func TestRunWatchdog(t *testing.T) {
 		defer os.Remove(sockPath)
 
 		t.Setenv("NOTIFY_SOCKET", sockPath)
-		t.Setenv("WATCHDOG_USEC", "200000") // 200ms -> tick every 100ms
+		t.Setenv("WATCHDOG_USEC", "200000")
 
 		ctx, cancel := context.WithTimeout(context.Background(), 350*time.Millisecond)
 		defer cancel()

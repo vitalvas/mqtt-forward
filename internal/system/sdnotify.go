@@ -1,4 +1,4 @@
-package sdnotify
+package system
 
 import (
 	"context"

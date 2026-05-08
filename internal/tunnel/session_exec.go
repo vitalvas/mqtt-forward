@@ -68,7 +68,7 @@ func (s *ExecSession) Start(ctx context.Context) error {
 func (s *ExecSession) run() {
 	defer s.Close()
 
-	cmd := exec.CommandContext(s.ctx, "sh", "-c", s.command)
+	cmd := exec.CommandContext(s.ctx, defaultShell(), "-c", s.command)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
 
 	stdout, err := cmd.StdoutPipe()

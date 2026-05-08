@@ -17,6 +17,7 @@ import (
 	"github.com/vitalvas/mqtt-forward/internal/client"
 	"github.com/vitalvas/mqtt-forward/internal/config"
 	"github.com/vitalvas/mqtt-forward/internal/device"
+	"github.com/vitalvas/mqtt-forward/internal/system"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 	"github.com/vitalvas/mqttv5"
 )
@@ -71,6 +72,10 @@ func newDeviceCmd() *cobra.Command {
 				Level:   cfg.LogLevel,
 				LogType: "json",
 			})
+
+			if err := system.Lock(); err != nil {
+				logger.Debug("memlock", "error", err)
+			}
 
 			if cfg.DeviceID == "" {
 				cfg.DeviceID = defaultDeviceID()

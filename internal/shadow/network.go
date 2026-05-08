@@ -11,44 +11,35 @@ import (
 
 const (
 	publicIPTimeout = 5 * time.Second
-	checkIPURL      = "https://checkip.amazonaws.com/"
 	dnsResolver     = "resolver1.opendns.com:53"
 	dnsQuery        = "myip.opendns.com"
 )
 
-var checkIPURLOverride = checkIPURL
+var publicIPURLs = []string{
+	"https://checkip.amazonaws.com/",
+	"http://whatismyip.akamai.com/",
+}
 
 func publicIP(ctx context.Context) string {
 	ctx, cancel := context.WithTimeout(ctx, publicIPTimeout)
 	defer cancel()
 
-	ch := make(chan string, 2)
-
-	go func() {
-		if ip := publicIPHTTP(ctx); ip != "" {
-			ch <- ip
+	for _, url := range publicIPURLs {
+		if ip := publicIPHTTP(ctx, url); ip != "" {
+			return ip
 		}
-	}()
-
-	go func() {
-		if ip := publicIPDNS(ctx); ip != "" {
-			ch <- ip
-		}
-	}()
-
-	select {
-	case ip := <-ch:
-		return ip
-	case <-ctx.Done():
-		return ""
 	}
+
+	return publicIPDNS(ctx)
 }
 
-func publicIPHTTP(ctx context.Context) string {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, checkIPURLOverride, nil)
+func publicIPHTTP(ctx context.Context, url string) string {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return ""
 	}
+
+	req.Header.Set("User-Agent", "curl/8.7.1")
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

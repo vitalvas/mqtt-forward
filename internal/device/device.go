@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/vitalvas/mqtt-forward/internal/awstunnel"
-	"github.com/vitalvas/mqtt-forward/internal/sdnotify"
 	"github.com/vitalvas/mqtt-forward/internal/shadow"
+	"github.com/vitalvas/mqtt-forward/internal/system"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 )
 
@@ -96,11 +96,11 @@ func (d *Device) Run(ctx context.Context) error {
 
 	d.logger.Debug("device started", "device_id", d.deviceID)
 
-	if err := sdnotify.Ready(); err != nil {
+	if err := system.Ready(); err != nil {
 		d.logger.Debug("sd-notify ready", "error", err)
 	}
 
-	go sdnotify.RunWatchdog(ctx, d.healthCheck)
+	go system.RunWatchdog(ctx, d.healthCheck)
 
 	if d.awsIoT {
 		reporter := shadow.NewReporter(shadow.ReporterConfig{
@@ -117,7 +117,7 @@ func (d *Device) Run(ctx context.Context) error {
 
 	d.logger.Debug("device shutting down")
 
-	if err := sdnotify.Stopping(); err != nil {
+	if err := system.Stopping(); err != nil {
 		d.logger.Debug("sd-notify stopping", "error", err)
 	}
 	d.manager.CloseAll()

@@ -12,6 +12,7 @@ Restart=always
 RestartSec=5
 WatchdogSec=30
 LimitNOFILE=65536
+LimitMEMLOCK=infinity
 
 [Install]
 WantedBy=multi-user.target

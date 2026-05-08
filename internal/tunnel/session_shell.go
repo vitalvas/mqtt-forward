@@ -59,7 +59,7 @@ func (s *ShellSession) Start(ctx context.Context) error {
 
 	shell := os.Getenv("SHELL")
 	if shell == "" {
-		shell = "/bin/sh"
+		shell = defaultShell()
 	}
 
 	cmd := exec.CommandContext(s.ctx, shell)
@@ -240,4 +240,12 @@ func (s *ShellSession) sendClose(exitCode *int) {
 		QoS:         1,
 		ContentType: "application/json",
 	})
+}
+
+func defaultShell() string {
+	if _, err := exec.LookPath("bash"); err == nil {
+		return "bash"
+	}
+
+	return "sh"
 }

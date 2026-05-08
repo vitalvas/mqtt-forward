@@ -59,7 +59,7 @@ func TestPublicIPHTTP(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		ip := publicIPHTTP(ctx)
+		ip := publicIPHTTP(ctx, "https://checkip.amazonaws.com/")
 		assert.Empty(t, ip)
 	})
 
@@ -69,11 +69,7 @@ func TestPublicIPHTTP(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		orig := checkIPURL
-		checkIPURLOverride = srv.URL
-		defer func() { checkIPURLOverride = orig }()
-
-		ip := publicIPHTTP(context.Background())
+		ip := publicIPHTTP(context.Background(), srv.URL)
 		assert.Equal(t, "203.0.113.1", ip)
 	})
 
@@ -83,11 +79,7 @@ func TestPublicIPHTTP(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		orig := checkIPURL
-		checkIPURLOverride = srv.URL
-		defer func() { checkIPURLOverride = orig }()
-
-		ip := publicIPHTTP(context.Background())
+		ip := publicIPHTTP(context.Background(), srv.URL)
 		assert.Empty(t, ip)
 	})
 }
