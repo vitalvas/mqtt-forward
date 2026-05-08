@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.2](https://github.com/vitalvas/mqtt-forward/compare/v0.3.1...v0.3.2) (2026-05-08)
+
+
+### Bug Fixes
+
+* skip Go default DNS fallback addresses and add --version flag ([f4801c4](https://github.com/vitalvas/mqtt-forward/commit/f4801c4b547af4336be7d979cafec0f0b3bf630e))
+
 ## [0.3.1](https://github.com/vitalvas/mqtt-forward/compare/v0.3.0...v0.3.1) (2026-05-08)
 
 
