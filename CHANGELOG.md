@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.2](https://github.com/vitalvas/mqtt-forward/compare/v0.1.1...v0.1.2) (2026-05-08)
+
+
+### Bug Fixes
+
+* restart service on package install/upgrade ([c088eb4](https://github.com/vitalvas/mqtt-forward/commit/c088eb4b14b6c7daa343fe9f23a44de0445aa6bf))
+
 ## [0.1.1](https://github.com/vitalvas/mqtt-forward/compare/v0.1.0...v0.1.1) (2026-05-08)
 
 
