@@ -34,6 +34,10 @@ nfpms:
     contents:
       - src: packaging/systemd/mqtt-forward.service
         dst: /lib/systemd/system/mqtt-forward.service
+      - src: packaging/certs/AmazonRootCA1.pem
+        dst: /etc/mqtt-forward/AmazonRootCA1.pem
+        file_info:
+          mode: 0644
       - dst: /etc/mqtt-forward
         type: dir
         file_info:
