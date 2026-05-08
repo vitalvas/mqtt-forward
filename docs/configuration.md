@@ -10,11 +10,13 @@ All settings are configured via environment variables:
 | `MQTT_USERNAME` | MQTT username | no | (empty) |
 | `MQTT_PASSWORD` | MQTT password | no | (empty) |
 | `MQTT_KEEP_ALIVE` | Keep-alive interval in seconds | no | `60` |
-| `MQTT_TLS_CERT` | Path to TLS client certificate | no | (empty) |
-| `MQTT_TLS_KEY` | Path to TLS client private key | no | (empty) |
-| `MQTT_TLS_CA` | Path to TLS CA certificate | no | (empty) |
+| `MQTT_TLS_CERT` | Path to TLS client certificate | no | `/etc/mqtt-forward/device.pem` * |
+| `MQTT_TLS_KEY` | Path to TLS client private key | no | `/etc/mqtt-forward/device.key` * |
+| `MQTT_TLS_CA` | Path to TLS CA certificate | no | `/etc/mqtt-forward/AmazonRootCA1.pem` * |
 | `MQTT_LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | no | `info` |
 | `MQTT_TUNNEL_SERVICES` | AWS Secure Tunneling service map | no | `SSH=localhost:22` |
+
+\* Device mode only: TLS defaults are applied only if the file exists on disk and the variable is not set.
 
 When connecting to AWS IoT Core (`*.iot.*.amazonaws.com`) on port 443, the ALPN protocol is set automatically based on the URL scheme:
 
@@ -26,16 +28,12 @@ When connected to AWS IoT Core, the following features are enabled automatically
 
 ## AWS IoT Core Example
 
+With the deb package installed, TLS certificates are auto-detected from `/etc/mqtt-forward/`. Place your device certificate and key as `device.pem` and `device.key`. The CA certificate (`AmazonRootCA1.pem`) is included in the package.
+
 MQTT over TLS:
 
 ```sh
-curl -o /etc/mqtt-forward/AmazonRootCA1.pem https://www.amazontrust.com/repository/AmazonRootCA1.pem
-
 export MQTT_BROKER=tls://ENDPOINT.iot.REGION.amazonaws.com:443
-export MQTT_TLS_CERT=/etc/mqtt-forward/device.cert.pem
-export MQTT_TLS_KEY=/etc/mqtt-forward/device.private.key
-export MQTT_TLS_CA=/etc/mqtt-forward/AmazonRootCA1.pem
-export MQTT_DEVICE_ID=my-device
 
 mqtt-forward device
 ```
@@ -44,10 +42,17 @@ MQTT over WebSocket Secure:
 
 ```sh
 export MQTT_BROKER=wss://ENDPOINT.iot.REGION.amazonaws.com:443/mqtt
-export MQTT_TLS_CERT=/etc/mqtt-forward/device.cert.pem
-export MQTT_TLS_KEY=/etc/mqtt-forward/device.private.key
+
+mqtt-forward device
+```
+
+With explicit TLS paths:
+
+```sh
+export MQTT_BROKER=tls://ENDPOINT.iot.REGION.amazonaws.com:443
+export MQTT_TLS_CERT=/etc/mqtt-forward/device.pem
+export MQTT_TLS_KEY=/etc/mqtt-forward/device.key
 export MQTT_TLS_CA=/etc/mqtt-forward/AmazonRootCA1.pem
-export MQTT_DEVICE_ID=my-device
 
 mqtt-forward device
 ```

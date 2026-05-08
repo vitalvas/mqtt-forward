@@ -78,6 +78,8 @@ func newDeviceCmd() *cobra.Command {
 				logger.Debug("memlock", "error", err)
 			}
 
+			applyDeviceTLSDefaults()
+
 			if cfg.DeviceID == "" {
 				cfg.DeviceID = defaultDeviceID()
 			}
@@ -465,6 +467,27 @@ func newEventHandler(logger *slog.Logger, onConnectionLost func()) mqttv5.EventH
 			logger.Debug("mqtt connected")
 		case errors.Is(ev, mqttv5.ErrReconnectFailed):
 			logger.Error("mqtt reconnect failed")
+		}
+	}
+}
+
+func applyDeviceTLSDefaults() {
+	defaults := []struct {
+		field *string
+		path  string
+	}{
+		{&cfg.TLSCert, "/etc/mqtt-forward/device.pem"},
+		{&cfg.TLSKey, "/etc/mqtt-forward/device.key"},
+		{&cfg.TLSCA, "/etc/mqtt-forward/AmazonRootCA1.pem"},
+	}
+
+	for _, d := range defaults {
+		if *d.field != "" {
+			continue
+		}
+
+		if _, err := os.Stat(d.path); err == nil {
+			*d.field = d.path
 		}
 	}
 }
