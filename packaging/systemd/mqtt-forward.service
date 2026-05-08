@@ -2,12 +2,12 @@
 Description=MQTT Forward Device Agent
 After=network-online.target
 Wants=network-online.target
-ConditionPathExists=/etc/mqtt-forward/mqtt-forward.env
+ConditionPathExists=/etc/default/mqtt-forward
 
 [Service]
 Type=notify
 ExecStart=/usr/bin/mqtt-forward device
-EnvironmentFile=/etc/mqtt-forward/mqtt-forward.env
+EnvironmentFile=/etc/default/mqtt-forward
 Restart=always
 RestartSec=5
 WatchdogSec=30
