@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/vitalvas/mqtt-forward/compare/v0.1.2...v0.2.0) (2026-05-08)
+
+
+### Features
+
+* merge sdnotify and memlock into internal/system package ([cff5112](https://github.com/vitalvas/mqtt-forward/commit/cff51129eb3a8e3863649fb2c351b1aad5dc8e93))
+
 ## [0.1.2](https://github.com/vitalvas/mqtt-forward/compare/v0.1.1...v0.1.2) (2026-05-08)
 
 
