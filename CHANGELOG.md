@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.0](https://github.com/vitalvas/mqtt-forward/compare/v0.4.0...v0.5.0) (2026-05-08)
+
+
+### Features
+
+* add version and architecture to status command output ([788478f](https://github.com/vitalvas/mqtt-forward/commit/788478ff5b6c86abaea018b5eaff4d467692d468))
+* report dualstack public IPs in device shadow ([ac582e6](https://github.com/vitalvas/mqtt-forward/commit/ac582e68530f962e9f42b9e869f542a1f09272e7))
+
 ## [0.4.0](https://github.com/vitalvas/mqtt-forward/compare/v0.3.2...v0.4.0) (2026-05-08)
 
 
