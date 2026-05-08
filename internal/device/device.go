@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net"
+	"runtime"
 	"sync"
 	"time"
 
@@ -326,6 +327,8 @@ func (d *Device) handlePing(msg tunnel.ControlMessage) {
 		Type:      tunnel.MessageTypePong,
 		SessionID: msg.SessionID,
 		Timestamp: msg.Timestamp,
+		Version:   d.version,
+		Arch:      runtime.GOARCH,
 	}
 
 	data, err := json.Marshal(pong)

@@ -58,6 +58,8 @@ type ControlMessage struct {
 	AckBytes  uint64 `json:"ack_bytes,omitempty"`
 	Timestamp int64  `json:"timestamp,omitempty"`
 	Timeout   int    `json:"timeout,omitempty"`
+	Version   string `json:"version,omitempty"`
+	Arch      string `json:"arch,omitempty"`
 }
 
 type ParsedTopic struct {

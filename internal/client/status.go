@@ -17,6 +17,8 @@ const statusTimeout = 5 * time.Second
 
 type deviceStatus struct {
 	DeviceID string
+	Version  string
+	Arch     string
 	RTT      time.Duration
 }
 
@@ -48,6 +50,8 @@ func RunStatus(ctx context.Context, transport tunnel.Transport, w io.Writer) err
 		if _, exists := devices[parsed.DeviceID]; !exists {
 			devices[parsed.DeviceID] = &deviceStatus{
 				DeviceID: parsed.DeviceID,
+				Version:  msg.Version,
+				Arch:     msg.Arch,
 				RTT:      time.Since(sentAt),
 			}
 		}
@@ -59,6 +63,8 @@ func RunStatus(ctx context.Context, transport tunnel.Transport, w io.Writer) err
 	if err := transport.SubscribeAll(); err != nil {
 		return fmt.Errorf("subscribe all: %w", err)
 	}
+
+	time.Sleep(100 * time.Millisecond)
 
 	msg := tunnel.ControlMessage{
 		Type:      tunnel.MessageTypePing,
@@ -97,10 +103,17 @@ func RunStatus(ctx context.Context, transport tunnel.Transport, w io.Writer) err
 		return sorted[i].DeviceID < sorted[j].DeviceID
 	})
 
-	fmt.Fprintf(w, "%-30s %s\n", "DEVICE", "RTT")
+	fmt.Fprintf(w, "%-30s %-18s %s\n", "DEVICE", "VERSION", "RTT")
 
 	for _, ds := range sorted {
-		fmt.Fprintf(w, "%-30s %s\n", ds.DeviceID, ds.RTT.Round(time.Microsecond))
+		version := ds.Version
+		if version != "" && ds.Arch != "" {
+			version = fmt.Sprintf("%s/%s", version, ds.Arch)
+		} else if version == "" {
+			version = "-"
+		}
+
+		fmt.Fprintf(w, "%-30s %-18s %s\n", ds.DeviceID, version, ds.RTT.Round(time.Microsecond))
 	}
 
 	if len(sorted) == 0 {

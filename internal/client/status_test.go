@@ -27,7 +27,7 @@ func TestRunStatus(t *testing.T) {
 			done <- RunStatus(ctx, mt, &buf)
 		}()
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 
 		published := mt.getPublished()
 		require.Len(t, published, 1)
@@ -55,6 +55,7 @@ func TestRunStatus(t *testing.T) {
 		assert.Contains(t, output, "dev-1")
 		assert.Contains(t, output, "dev-2")
 		assert.Contains(t, output, "DEVICE")
+		assert.Contains(t, output, "VERSION")
 		assert.Contains(t, output, "RTT")
 	})
 
@@ -87,7 +88,7 @@ func TestRunStatus(t *testing.T) {
 			done <- RunStatus(ctx, mt, &buf)
 		}()
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 
 		pong := tunnel.ControlMessage{
 			Type:      tunnel.MessageTypePong,
@@ -120,7 +121,7 @@ func TestRunStatus(t *testing.T) {
 			done <- RunStatus(ctx, mt, &buf)
 		}()
 
-		time.Sleep(50 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 
 		published := mt.getPublished()
 		require.Len(t, published, 1)
