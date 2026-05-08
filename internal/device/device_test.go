@@ -801,37 +801,6 @@ func TestDeviceExecWithTimeout(t *testing.T) {
 	})
 }
 
-func TestDeviceSetTunnelServices(t *testing.T) {
-	t.Run("set_services", func(t *testing.T) {
-		mt := newMockTransport("device-1")
-		dev := New(mt, "device-1", testLogger())
-
-		services := map[string]string{
-			"SSH":  "localhost:22",
-			"HTTP": "localhost:80",
-		}
-
-		dev.SetTunnelServices(services)
-		assert.Equal(t, services, dev.tunnelServices)
-	})
-
-	t.Run("set_nil", func(t *testing.T) {
-		mt := newMockTransport("device-1")
-		dev := New(mt, "device-1", testLogger())
-
-		dev.SetTunnelServices(nil)
-		assert.Nil(t, dev.tunnelServices)
-	})
-
-	t.Run("set_empty", func(t *testing.T) {
-		mt := newMockTransport("device-1")
-		dev := New(mt, "device-1", testLogger())
-
-		dev.SetTunnelServices(map[string]string{})
-		assert.Empty(t, dev.tunnelServices)
-	})
-}
-
 func TestDeviceSetters(t *testing.T) {
 	t.Run("set_health_check", func(t *testing.T) {
 		mt := newMockTransport("device-1")
@@ -856,94 +825,6 @@ func TestDeviceSetters(t *testing.T) {
 
 		dev.SetAWSIoT(true)
 		assert.True(t, dev.awsIoT)
-	})
-}
-
-func TestDeviceHandleTunnelNotify(t *testing.T) {
-	t.Run("valid_notification", func(t *testing.T) {
-		mt := newMockTransport("device-1")
-		dev := New(mt, "device-1", testLogger())
-		dev.SetTunnelServices(map[string]string{"SSH": "localhost:22"})
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		notif := tunnelNotification{
-			ClientAccessToken: "token-123",
-			ClientMode:        "destination",
-			Region:            "us-east-1",
-			Services:          []string{"SSH"},
-		}
-
-		payload, err := json.Marshal(notif)
-		require.NoError(t, err)
-
-		// Should not panic; the goroutine will fail to connect to AWS, which is expected
-		dev.handleTunnelNotify(ctx, payload)
-
-		time.Sleep(100 * time.Millisecond)
-	})
-
-	t.Run("wrong_client_mode", func(t *testing.T) {
-		mt := newMockTransport("device-1")
-		dev := New(mt, "device-1", testLogger())
-		dev.SetTunnelServices(map[string]string{"SSH": "localhost:22"})
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		notif := tunnelNotification{
-			ClientAccessToken: "token-123",
-			ClientMode:        "source",
-			Region:            "us-east-1",
-			Services:          []string{"SSH"},
-		}
-
-		payload, err := json.Marshal(notif)
-		require.NoError(t, err)
-
-		// Should return early without starting a proxy
-		dev.handleTunnelNotify(ctx, payload)
-
-		time.Sleep(50 * time.Millisecond)
-	})
-
-	t.Run("unsupported_service", func(t *testing.T) {
-		mt := newMockTransport("device-1")
-		dev := New(mt, "device-1", testLogger())
-		dev.SetTunnelServices(map[string]string{"SSH": "localhost:22"})
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		notif := tunnelNotification{
-			ClientAccessToken: "token-123",
-			ClientMode:        "destination",
-			Region:            "us-east-1",
-			Services:          []string{"UNKNOWN"},
-		}
-
-		payload, err := json.Marshal(notif)
-		require.NoError(t, err)
-
-		// Should log error and return without starting a proxy
-		dev.handleTunnelNotify(ctx, payload)
-
-		time.Sleep(50 * time.Millisecond)
-	})
-
-	t.Run("invalid_json", func(_ *testing.T) {
-		mt := newMockTransport("device-1")
-		dev := New(mt, "device-1", testLogger())
-		dev.SetTunnelServices(map[string]string{"SSH": "localhost:22"})
-
-		ctx, cancel := context.WithCancel(context.Background())
-		defer cancel()
-
-		// Should log error and return
-		dev.handleTunnelNotify(ctx, []byte("not json"))
-
-		time.Sleep(50 * time.Millisecond)
 	})
 }
 

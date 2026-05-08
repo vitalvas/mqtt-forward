@@ -7,26 +7,18 @@ import (
 	"log/slog"
 	"net"
 	"runtime"
-	"sync"
 	"time"
 
-	"github.com/vitalvas/mqtt-forward/internal/awstunnel"
 	"github.com/vitalvas/mqtt-forward/internal/shadow"
 	"github.com/vitalvas/mqtt-forward/internal/system"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 )
 
 type Device struct {
-	transport      tunnel.Transport
-	deviceID       string
-	logger         *slog.Logger
-	manager        *tunnel.SessionManager
-	tunnelServices map[string]string
-
-	tunnelMu    sync.Mutex
-	activeProxy *awstunnel.Proxy
-	proxyCancel context.CancelFunc
-
+	transport   tunnel.Transport
+	deviceID    string
+	logger      *slog.Logger
+	manager     *tunnel.SessionManager
 	healthCheck func() bool
 	version     string
 	awsIoT      bool
@@ -39,10 +31,6 @@ func New(transport tunnel.Transport, deviceID string, logger *slog.Logger) *Devi
 		logger:    logger,
 		manager:   tunnel.NewSessionManager(logger),
 	}
-}
-
-func (d *Device) SetTunnelServices(services map[string]string) {
-	d.tunnelServices = services
 }
 
 func (d *Device) SetHealthCheck(fn func() bool) {
@@ -78,15 +66,6 @@ func (d *Device) Run(ctx context.Context) error {
 		d.handleControl(topic, payload)
 	}); err != nil {
 		return fmt.Errorf("subscribe shared ping: %w", err)
-	}
-
-	if d.tunnelServices != nil {
-		notifyTopic := fmt.Sprintf("$aws/things/%s/tunnels/notify", d.deviceID)
-		if err := d.transport.Subscribe(notifyTopic, func(_ string, payload []byte) {
-			d.handleTunnelNotify(ctx, payload)
-		}); err != nil {
-			return fmt.Errorf("subscribe tunnel notify: %w", err)
-		}
 	}
 
 	if err := d.transport.SubscribeAll(); err != nil {
@@ -126,62 +105,6 @@ func (d *Device) Run(ctx context.Context) error {
 	d.transport.Unsubscribe(controlFilter, dataFilter)
 
 	return nil
-}
-
-type tunnelNotification struct {
-	ClientAccessToken string   `json:"clientAccessToken"`
-	ClientMode        string   `json:"clientMode"`
-	Region            string   `json:"region"`
-	Services          []string `json:"services"`
-}
-
-func (d *Device) handleTunnelNotify(ctx context.Context, payload []byte) {
-	var notif tunnelNotification
-	if err := json.Unmarshal(payload, &notif); err != nil {
-		d.logger.Error("unmarshal tunnel notification", "error", err)
-		return
-	}
-
-	if notif.ClientMode != "destination" {
-		d.logger.Debug("ignoring tunnel notification", "mode", notif.ClientMode)
-		return
-	}
-
-	services := make(map[string]string)
-	for _, svc := range notif.Services {
-		target, ok := d.tunnelServices[svc]
-		if !ok {
-			d.logger.Error("unsupported tunnel service", "service", svc)
-			return
-		}
-
-		services[svc] = target
-	}
-
-	d.tunnelMu.Lock()
-	if d.proxyCancel != nil {
-		d.proxyCancel()
-	}
-
-	proxyCtx, proxyCancel := context.WithCancel(ctx)
-	d.proxyCancel = proxyCancel
-
-	proxy := awstunnel.New(awstunnel.ProxyConfig{
-		Token:    notif.ClientAccessToken,
-		Region:   notif.Region,
-		Services: services,
-		Logger:   d.logger,
-	})
-	d.activeProxy = proxy
-	d.tunnelMu.Unlock()
-
-	go func() {
-		if err := proxy.Run(proxyCtx); err != nil {
-			d.logger.Error("secure tunnel proxy", "error", err)
-		}
-	}()
-
-	d.logger.Debug("secure tunnel proxy started", "region", notif.Region, "services", notif.Services)
 }
 
 func (d *Device) handleControl(_ string, payload []byte) {

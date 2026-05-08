@@ -68,8 +68,7 @@ topic read tunnel/__shared__/+
 topic write tunnel/d1/out/control
 topic write tunnel/d1/out/data/+
 
-# Device d1: AWS IoT (when using AWS IoT Core)
-topic read $aws/things/d1/tunnels/notify
+# Device d1: AWS IoT Device Shadow (when using AWS IoT Core)
 topic write $aws/things/d1/shadow/update
 ```
 

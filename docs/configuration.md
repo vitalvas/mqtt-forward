@@ -14,7 +14,6 @@ All settings are configured via environment variables:
 | `MQTT_TLS_KEY` | Path to TLS client private key | no | `/etc/mqtt-forward/device.key` * |
 | `MQTT_TLS_CA` | Path to TLS CA certificate | no | `/etc/mqtt-forward/AmazonRootCA1.pem` * |
 | `MQTT_LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | no | `info` |
-| `MQTT_TUNNEL_SERVICES` | AWS Secure Tunneling service map | no | `SSH=localhost:22` |
 
 \* Device mode only: TLS defaults are applied only if the file exists on disk and the variable is not set.
 
@@ -23,7 +22,6 @@ When connecting to AWS IoT Core (`*.iot.*.amazonaws.com`) on port 443, the ALPN 
 For `tls://`, `ssl://`, or `tcps://` schemes, ALPN is set to `x-amzn-mqtt-ca`. WebSocket (`wss://`) does not need ALPN.
 
 When connected to AWS IoT Core, the following features are enabled automatically:
-- AWS IoT Secure Tunneling (local proxy)
 - AWS IoT Device Shadow (reports version, public IP, and network interfaces every 30 minutes)
 
 ## AWS IoT Core Example

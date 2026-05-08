@@ -250,68 +250,6 @@ func TestConfig(t *testing.T) {
 	})
 }
 
-func TestParseTunnelServices(t *testing.T) {
-	t.Run("default_value", func(t *testing.T) {
-		cfg := Config{
-			TunnelServices: "SSH=localhost:22",
-		}
-
-		services := cfg.ParseTunnelServices()
-		assert.Equal(t, map[string]string{"SSH": "localhost:22"}, services)
-	})
-
-	t.Run("multiple_services", func(t *testing.T) {
-		cfg := Config{
-			TunnelServices: "SSH=localhost:22,HTTP=localhost:80",
-		}
-
-		services := cfg.ParseTunnelServices()
-		assert.Equal(t, map[string]string{
-			"SSH":  "localhost:22",
-			"HTTP": "localhost:80",
-		}, services)
-	})
-
-	t.Run("empty_string", func(t *testing.T) {
-		cfg := Config{
-			TunnelServices: "",
-		}
-
-		services := cfg.ParseTunnelServices()
-		assert.Empty(t, services)
-	})
-
-	t.Run("single_service", func(t *testing.T) {
-		cfg := Config{
-			TunnelServices: "MQTT=localhost:1883",
-		}
-
-		services := cfg.ParseTunnelServices()
-		assert.Equal(t, map[string]string{"MQTT": "localhost:1883"}, services)
-	})
-
-	t.Run("with_spaces", func(t *testing.T) {
-		cfg := Config{
-			TunnelServices: " SSH = localhost:22 , HTTP = localhost:80 ",
-		}
-
-		services := cfg.ParseTunnelServices()
-		assert.Equal(t, map[string]string{
-			"SSH":  "localhost:22",
-			"HTTP": "localhost:80",
-		}, services)
-	})
-
-	t.Run("invalid_entry_no_equals", func(t *testing.T) {
-		cfg := Config{
-			TunnelServices: "SSH=localhost:22,BADENTRY",
-		}
-
-		services := cfg.ParseTunnelServices()
-		assert.Equal(t, map[string]string{"SSH": "localhost:22"}, services)
-	})
-}
-
 func TestIsAWSIoT(t *testing.T) {
 	t.Run("aws_iot_endpoint", func(t *testing.T) {
 		cfg := Config{
