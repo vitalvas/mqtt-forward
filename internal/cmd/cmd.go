@@ -51,6 +51,7 @@ func NewRootCmd() *cobra.Command {
 	rootCmd := &cobra.Command{
 		Use:          "mqtt-forward",
 		Short:        "TCP and shell tunnel over MQTT",
+		Version:      appVersion,
 		SilenceUsage: true,
 		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
 			return config.Load(&cfg)

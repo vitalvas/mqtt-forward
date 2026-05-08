@@ -32,18 +32,20 @@ func TestInitResolver(t *testing.T) {
 }
 
 func TestResolverDial(t *testing.T) {
-	t.Run("system_dns_works", func(t *testing.T) {
-		conn, err := resolverDial(context.Background(), "udp", "127.0.0.53:53")
-		if err != nil {
-			// system dns may not be available, skip
-			t.Skip("system DNS not available")
-		}
-
+	t.Run("uses_system_dns", func(t *testing.T) {
+		conn, err := resolverDial(context.Background(), "udp", "8.8.8.8:53")
+		require.NoError(t, err)
 		conn.Close()
 	})
 
-	t.Run("fallback_to_public", func(t *testing.T) {
-		conn, err := resolverDial(context.Background(), "udp", "192.0.2.1:53")
+	t.Run("skips_localhost_fallback", func(t *testing.T) {
+		conn, err := resolverDial(context.Background(), "udp", "127.0.0.1:53")
+		require.NoError(t, err)
+		conn.Close()
+	})
+
+	t.Run("skips_ipv6_localhost_fallback", func(t *testing.T) {
+		conn, err := resolverDial(context.Background(), "udp", "[::1]:53")
 		require.NoError(t, err)
 		conn.Close()
 	})
@@ -52,7 +54,29 @@ func TestResolverDial(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel()
 
-		_, err := resolverDial(ctx, "udp", "127.0.0.53:53")
+		_, err := resolverDial(ctx, "udp", "8.8.8.8:53")
 		assert.Error(t, err)
+	})
+}
+
+func TestIsDefaultFallback(t *testing.T) {
+	t.Run("localhost_ipv4", func(t *testing.T) {
+		assert.True(t, isDefaultFallback("127.0.0.1:53"))
+	})
+
+	t.Run("localhost_ipv6", func(t *testing.T) {
+		assert.True(t, isDefaultFallback("[::1]:53"))
+	})
+
+	t.Run("real_dns", func(t *testing.T) {
+		assert.False(t, isDefaultFallback("8.8.8.8:53"))
+	})
+
+	t.Run("systemd_resolved", func(t *testing.T) {
+		assert.False(t, isDefaultFallback("127.0.0.53:53"))
+	})
+
+	t.Run("invalid", func(t *testing.T) {
+		assert.False(t, isDefaultFallback("invalid"))
 	})
 }

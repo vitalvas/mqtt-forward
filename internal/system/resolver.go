@@ -3,6 +3,7 @@ package system
 import (
 	"context"
 	"net"
+	"strings"
 )
 
 var publicDNS = []string{
@@ -20,17 +21,32 @@ func InitResolver() {
 func resolverDial(ctx context.Context, network, address string) (net.Conn, error) {
 	var dialer net.Dialer
 
-	conn, err := dialer.DialContext(ctx, network, address)
-	if err == nil {
-		return conn, nil
-	}
-
-	for _, dns := range publicDNS {
-		conn, fallbackErr := dialer.DialContext(ctx, "udp", dns)
-		if fallbackErr == nil {
+	if !isDefaultFallback(address) {
+		conn, err := dialer.DialContext(ctx, network, address)
+		if err == nil {
 			return conn, nil
 		}
 	}
 
-	return nil, err
+	for _, dns := range publicDNS {
+		conn, err := dialer.DialContext(ctx, "udp", dns)
+		if err == nil {
+			return conn, nil
+		}
+	}
+
+	return nil, &net.OpError{
+		Op:  "dial",
+		Net: network,
+		Err: &net.DNSError{Err: "all DNS servers failed", IsTemporary: true},
+	}
+}
+
+func isDefaultFallback(address string) bool {
+	host, _, err := net.SplitHostPort(address)
+	if err != nil {
+		return false
+	}
+
+	return host == "127.0.0.1" || strings.HasPrefix(host, "[::1]") || host == "::1"
 }
