@@ -7,7 +7,7 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.11.1
 	github.com/vitalvas/gokit v0.30.0
-	github.com/vitalvas/mqttv5 v0.5.0
+	github.com/vitalvas/mqttv5 v0.7.0
 	golang.org/x/term v0.41.0
 )
 
