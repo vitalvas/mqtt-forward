@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/vitalvas/mqtt-forward/compare/v0.6.0...v0.6.1) (2026-05-09)
+
+
+### Bug Fixes
+
+* upgrade mqttv5 to v0.7.0, QUIC now opt-in via build tag ([35d7691](https://github.com/vitalvas/mqtt-forward/commit/35d769142ffc547ff160b6ea086db297b8a66ef0))
+
 ## [0.6.0](https://github.com/vitalvas/mqtt-forward/compare/v0.5.0...v0.6.0) (2026-05-08)
 
 
