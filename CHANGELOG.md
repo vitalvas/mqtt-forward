@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.0](https://github.com/vitalvas/mqtt-forward/compare/v0.6.1...v0.7.0) (2026-05-23)
+
+
+### Features
+
+* add HTTP health check endpoint for device mode ([d59e9fe](https://github.com/vitalvas/mqtt-forward/commit/d59e9feb5f0bf1e5bde362ee66a07eb7dca2dd23))
+
+
+### Bug Fixes
+
+* **tunnel:** handle flow control acks and session cleanup ([5632d5e](https://github.com/vitalvas/mqtt-forward/commit/5632d5e8371f0683d8fb60ba9f36f906a2c77b1f))
+
 ## [0.6.1](https://github.com/vitalvas/mqtt-forward/compare/v0.6.0...v0.6.1) (2026-05-09)
 
 
