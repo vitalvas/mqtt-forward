@@ -8,11 +8,12 @@ ConditionPathExists=/etc/default/mqtt-forward
 Type=notify
 ExecStart=/usr/bin/mqtt-forward device
 EnvironmentFile=/etc/default/mqtt-forward
+Environment=GOMEMLIMIT=32MiB
+Environment=GOMAXPROCS=1
 Restart=always
 RestartSec=5
 WatchdogSec=30
 LimitNOFILE=65536
-LimitMEMLOCK=infinity
 
 [Install]
 WantedBy=multi-user.target
