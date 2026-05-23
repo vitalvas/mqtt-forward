@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/vitalvas/mqtt-forward/compare/v0.7.0...v0.8.0) (2026-05-23)
+
+
+### Features
+
+* cap MQTT packet size and expose pprof via health server ([0820270](https://github.com/vitalvas/mqtt-forward/commit/08202707bc03ae62ddba0ec08b9652daf4fa6975))
+
 ## [0.7.0](https://github.com/vitalvas/mqtt-forward/compare/v0.6.1...v0.7.0) (2026-05-23)
 
 
