@@ -65,6 +65,100 @@ func TestHandler(t *testing.T) {
 
 		assert.Equal(t, http.StatusNotFound, rec.Code)
 	})
+
+	t.Run("pprof_endpoints_available_from_loopback", func(t *testing.T) {
+		s := New("", func() bool { return true }, logger)
+		handler := s.Handler()
+
+		for _, path := range []string{
+			"/debug/pprof/",
+			"/debug/pprof/heap",
+			"/debug/pprof/goroutine",
+			"/debug/pprof/allocs",
+			"/debug/pprof/cmdline",
+		} {
+			t.Run(path, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, path, nil)
+				req.RemoteAddr = "127.0.0.1:54321"
+				rec := httptest.NewRecorder()
+
+				handler.ServeHTTP(rec, req)
+
+				assert.Equal(t, http.StatusOK, rec.Code)
+				assert.NotEmpty(t, rec.Body.Bytes())
+			})
+		}
+	})
+
+	t.Run("pprof_rejects_non_loopback", func(t *testing.T) {
+		s := New("", func() bool { return true }, logger)
+		handler := s.Handler()
+
+		for _, remote := range []string{
+			"10.0.0.5:54321",
+			"203.0.113.7:443",
+			"[2001:db8::1]:8080",
+		} {
+			t.Run(remote, func(t *testing.T) {
+				req := httptest.NewRequest(http.MethodGet, "/debug/pprof/heap", nil)
+				req.RemoteAddr = remote
+				rec := httptest.NewRecorder()
+
+				handler.ServeHTTP(rec, req)
+
+				assert.Equal(t, http.StatusForbidden, rec.Code)
+			})
+		}
+	})
+
+	t.Run("pprof_accepts_ipv6_loopback", func(t *testing.T) {
+		s := New("", func() bool { return true }, logger)
+		handler := s.Handler()
+
+		req := httptest.NewRequest(http.MethodGet, "/debug/pprof/heap", nil)
+		req.RemoteAddr = "[::1]:54321"
+		rec := httptest.NewRecorder()
+
+		handler.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+	})
+
+	t.Run("health_remains_open_from_non_loopback", func(t *testing.T) {
+		s := New("", func() bool { return true }, logger)
+		handler := s.Handler()
+
+		req := httptest.NewRequest(http.MethodGet, "/health", nil)
+		req.RemoteAddr = "10.0.0.5:12345"
+		rec := httptest.NewRecorder()
+
+		handler.ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusOK, rec.Code)
+	})
+}
+
+func TestIsLoopback(t *testing.T) {
+	cases := []struct {
+		name   string
+		remote string
+		want   bool
+	}{
+		{"ipv4_loopback", "127.0.0.1:1234", true},
+		{"ipv4_loopback_other", "127.5.5.5:1234", true},
+		{"ipv6_loopback", "[::1]:1234", true},
+		{"ipv4_private", "10.0.0.5:1234", false},
+		{"ipv4_public", "203.0.113.7:443", false},
+		{"ipv6_public", "[2001:db8::1]:8080", false},
+		{"malformed", "not-an-address", false},
+		{"bare_loopback_no_port", "127.0.0.1", true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isLoopback(tc.remote))
+		})
+	}
 }
 
 func TestRun(t *testing.T) {

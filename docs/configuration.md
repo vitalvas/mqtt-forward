@@ -14,6 +14,7 @@ All settings are configured via environment variables:
 | `MQTT_TLS_KEY` | Path to TLS client private key | no | `/etc/mqtt-forward/device.key` * |
 | `MQTT_TLS_CA` | Path to TLS CA certificate | no | `/etc/mqtt-forward/AmazonRootCA1.pem` * |
 | `MQTT_LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | no | `info` |
+| `MQTT_MAX_PACKET_SIZE` | Maximum MQTT packet size in bytes accepted by the client. Must be large enough to hold a full tunnel data frame (~64 KB) plus MQTT v5 framing. | no | `131072` (128 KB) |
 | `MQTT_HEALTH_LISTEN` | Address for HTTP health check endpoint (device mode, e.g. `:8081`). Empty disables. | no | (empty) |
 
 \* Device mode only: TLS defaults are applied only if the file exists on disk and the variable is not set.
@@ -29,8 +30,9 @@ mqtt-forward device --health-listen :8081
 | Path | Method | Response |
 |------|--------|----------|
 | `/health` | `GET` | `200 OK` with body `ok` when the MQTT transport is connected, `503 Service Unavailable` with body `unavailable` otherwise. |
+| `/debug/pprof/` | `GET` | Standard Go runtime profiling index (`heap`, `goroutine`, `allocs`, `block`, `mutex`, `profile`, `trace`, `cmdline`, `symbol`). See [net/http/pprof](https://pkg.go.dev/net/http/pprof). Restricted to loopback clients; non-loopback callers receive `403 Forbidden`. |
 
-The endpoint is disabled by default.
+The endpoint is disabled by default. When enabled, the pprof handlers are mounted on the same listener as `/health` but are only reachable from `127.0.0.0/8` and `::1`, even if the listener is bound to a non-loopback interface. `/health` itself remains open to all callers so external monitors and load balancers continue to work.
 
 When connecting to AWS IoT Core (`*.iot.*.amazonaws.com`) on port 443, the ALPN protocol is set automatically based on the URL scheme:
 

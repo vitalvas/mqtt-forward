@@ -31,6 +31,12 @@ type Config struct {
 
 	HealthListen string `yaml:"health_listen" env:"MQTT_HEALTH_LISTEN"`
 
+	// MaxPacketSize caps the largest MQTT packet the client will accept.
+	// The default (128 KB) holds a full tunnel data frame (64 KB payload
+	// plus header) and MQTT v5 framing with comfortable headroom. The
+	// upstream mqttv5 default is 4 MB, which is wasteful for this workload.
+	MaxPacketSize uint32 `yaml:"max_packet_size" env:"MQTT_MAX_PACKET_SIZE" default:"131072"`
+
 	EventHandler mqttv5.EventHandler `yaml:"-"`
 }
 
@@ -42,6 +48,10 @@ func (c *Config) MQTTOptions() ([]mqttv5.Option, error) {
 		mqttv5.WithMaxReconnects(-1),
 		mqttv5.WithCleanStart(false),
 		mqttv5.WithProxyFromEnvironment(true),
+	}
+
+	if c.MaxPacketSize > 0 {
+		opts = append(opts, mqttv5.WithMaxPacketSize(c.MaxPacketSize))
 	}
 
 	if c.ClientID != "" {

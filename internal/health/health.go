@@ -6,14 +6,17 @@ import (
 	"log/slog"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"time"
 )
 
 const (
 	shutdownTimeout = 5 * time.Second
 	readTimeout     = 5 * time.Second
-	writeTimeout    = 5 * time.Second
-	idleTimeout     = 30 * time.Second
+	// writeTimeout must accommodate pprof CPU profile and trace endpoints,
+	// which stream for up to ?seconds=N (default 30s) before responding.
+	writeTimeout = 2 * time.Minute
+	idleTimeout  = 30 * time.Second
 )
 
 type Server struct {
@@ -34,8 +37,42 @@ func New(listen string, healthy func() bool, logger *slog.Logger) *Server {
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", s.handleHealth)
+	registerPprof(mux)
 
 	return mux
+}
+
+func registerPprof(mux *http.ServeMux) {
+	mux.Handle("/debug/pprof/", loopbackOnly(http.HandlerFunc(pprof.Index)))
+	mux.Handle("/debug/pprof/cmdline", loopbackOnly(http.HandlerFunc(pprof.Cmdline)))
+	mux.Handle("/debug/pprof/profile", loopbackOnly(http.HandlerFunc(pprof.Profile)))
+	mux.Handle("/debug/pprof/symbol", loopbackOnly(http.HandlerFunc(pprof.Symbol)))
+	mux.Handle("/debug/pprof/trace", loopbackOnly(http.HandlerFunc(pprof.Trace)))
+}
+
+func loopbackOnly(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if !isLoopback(r.RemoteAddr) {
+			http.Error(w, "forbidden", http.StatusForbidden)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isLoopback(remoteAddr string) bool {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		host = remoteAddr
+	}
+
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+
+	return ip.IsLoopback()
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {

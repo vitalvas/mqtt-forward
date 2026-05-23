@@ -24,6 +24,7 @@ func TestLoad(t *testing.T) {
 
 		assert.Equal(t, "tcp://localhost:1883", cfg.Broker)
 		assert.Equal(t, uint16(60), cfg.KeepAlive)
+		assert.Equal(t, uint32(128*1024), cfg.MaxPacketSize)
 	})
 
 	t.Run("env_override", func(t *testing.T) {
@@ -65,6 +66,15 @@ func TestLoad(t *testing.T) {
 
 		assert.Empty(t, cfg.HealthListen)
 	})
+
+	t.Run("env_max_packet_size", func(t *testing.T) {
+		t.Setenv("MQTT_MAX_PACKET_SIZE", "16384")
+
+		var cfg Config
+		require.NoError(t, Load(&cfg))
+
+		assert.Equal(t, uint32(16384), cfg.MaxPacketSize)
+	})
 }
 
 func TestConfig(t *testing.T) {
@@ -72,6 +82,18 @@ func TestConfig(t *testing.T) {
 		cfg := Config{
 			Broker:    "tcp://localhost:1883",
 			KeepAlive: 60,
+		}
+
+		opts, err := cfg.MQTTOptions()
+		require.NoError(t, err)
+		assert.NotEmpty(t, opts)
+	})
+
+	t.Run("mqtt_options_with_max_packet_size", func(t *testing.T) {
+		cfg := Config{
+			Broker:        "tcp://localhost:1883",
+			KeepAlive:     60,
+			MaxPacketSize: 65536,
 		}
 
 		opts, err := cfg.MQTTOptions()
