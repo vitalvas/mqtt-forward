@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/vitalvas/mqtt-forward/compare/v0.8.0...v0.8.1) (2026-05-23)
+
+
+### Bug Fixes
+
+* stop locking the entire Go heap into RAM ([320fa6e](https://github.com/vitalvas/mqtt-forward/commit/320fa6ee810ee45d09ef6dee63d448c1bac8ebc6))
+
 ## [0.8.0](https://github.com/vitalvas/mqtt-forward/compare/v0.7.0...v0.8.0) (2026-05-23)
 
 
