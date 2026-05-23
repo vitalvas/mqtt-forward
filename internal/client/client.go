@@ -7,7 +7,6 @@ import (
 	"io"
 	"log/slog"
 	"net"
-	"os"
 	"sync"
 	"time"
 
@@ -676,9 +675,4 @@ func (c *Client) sendClose(sessionID string) error {
 func getTermSize() (cols, rows uint16) {
 	// Default terminal size
 	return 80, 24
-}
-
-func init() {
-	// Suppress unused import warning for os package used in platform-specific files
-	_ = os.Stdin
 }
