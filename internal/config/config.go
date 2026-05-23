@@ -29,6 +29,8 @@ type Config struct {
 	TLSCA     string `yaml:"tls_ca" env:"MQTT_TLS_CA"`
 	LogLevel  string `yaml:"log_level" env:"MQTT_LOG_LEVEL" default:"info"`
 
+	HealthListen string `yaml:"health_listen" env:"MQTT_HEALTH_LISTEN"`
+
 	EventHandler mqttv5.EventHandler `yaml:"-"`
 }
 

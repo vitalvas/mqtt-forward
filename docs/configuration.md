@@ -14,8 +14,23 @@ All settings are configured via environment variables:
 | `MQTT_TLS_KEY` | Path to TLS client private key | no | `/etc/mqtt-forward/device.key` * |
 | `MQTT_TLS_CA` | Path to TLS CA certificate | no | `/etc/mqtt-forward/AmazonRootCA1.pem` * |
 | `MQTT_LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | no | `info` |
+| `MQTT_HEALTH_LISTEN` | Address for HTTP health check endpoint (device mode, e.g. `:8081`). Empty disables. | no | (empty) |
 
 \* Device mode only: TLS defaults are applied only if the file exists on disk and the variable is not set.
+
+## Health Check Endpoint
+
+Device mode can expose an HTTP health check endpoint for external monitoring (load balancers, orchestrators, uptime probes). Enable it with `MQTT_HEALTH_LISTEN` or `--health-listen`:
+
+```sh
+mqtt-forward device --health-listen :8081
+```
+
+| Path | Method | Response |
+|------|--------|----------|
+| `/health` | `GET` | `200 OK` with body `ok` when the MQTT transport is connected, `503 Service Unavailable` with body `unavailable` otherwise. |
+
+The endpoint is disabled by default.
 
 When connecting to AWS IoT Core (`*.iot.*.amazonaws.com`) on port 443, the ALPN protocol is set automatically based on the URL scheme:
 

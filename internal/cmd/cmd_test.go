@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -132,6 +134,10 @@ func TestCommands(t *testing.T) {
 		assert.Equal(t, "device", cmd.Use)
 
 		f := cmd.Flags().Lookup("device-id")
+		require.NotNil(t, f)
+		assert.Equal(t, "", f.DefValue)
+
+		f = cmd.Flags().Lookup("health-listen")
 		require.NotNil(t, f)
 		assert.Equal(t, "", f.DefValue)
 	})
@@ -350,6 +356,54 @@ func TestCommandsRunE(t *testing.T) {
 
 		err := cmd.Execute()
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+
+	t.Run("device_with_health_listen", func(t *testing.T) {
+		setMockConnector(t)
+
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		addr := listener.Addr().String()
+		require.NoError(t, listener.Close())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		cmd := newDeviceCmd()
+		cmd.SetContext(ctx)
+		cmd.SetArgs([]string{"--device-id", "dev1", "--health-listen", addr})
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- cmd.Execute()
+		}()
+
+		var resp *http.Response
+
+		deadline := time.Now().Add(1500 * time.Millisecond)
+		for time.Now().Before(deadline) {
+			r, getErr := http.Get(fmt.Sprintf("http://%s/health", addr))
+			if getErr == nil {
+				resp = r
+				break
+			}
+
+			time.Sleep(20 * time.Millisecond)
+		}
+
+		require.NotNil(t, resp, "health endpoint never became reachable")
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		resp.Body.Close()
+
+		cancel()
+
+		select {
+		case err := <-errCh:
+			assert.ErrorIs(t, err, context.Canceled)
+		case <-time.After(2 * time.Second):
+			t.Fatal("device cmd did not exit")
+		}
 	})
 
 	t.Run("tcp_with_mock_transport", func(t *testing.T) {

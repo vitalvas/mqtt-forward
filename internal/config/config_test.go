@@ -49,6 +49,22 @@ func TestLoad(t *testing.T) {
 
 		assert.Equal(t, "dev-1", cfg.DeviceID)
 	})
+
+	t.Run("env_health_listen", func(t *testing.T) {
+		t.Setenv("MQTT_HEALTH_LISTEN", ":8081")
+
+		var cfg Config
+		require.NoError(t, Load(&cfg))
+
+		assert.Equal(t, ":8081", cfg.HealthListen)
+	})
+
+	t.Run("health_listen_default_empty", func(t *testing.T) {
+		var cfg Config
+		require.NoError(t, Load(&cfg))
+
+		assert.Empty(t, cfg.HealthListen)
+	})
 }
 
 func TestConfig(t *testing.T) {

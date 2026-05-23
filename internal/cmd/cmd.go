@@ -17,6 +17,7 @@ import (
 	"github.com/vitalvas/mqtt-forward/internal/client"
 	"github.com/vitalvas/mqtt-forward/internal/config"
 	"github.com/vitalvas/mqtt-forward/internal/device"
+	"github.com/vitalvas/mqtt-forward/internal/health"
 	"github.com/vitalvas/mqtt-forward/internal/system"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 	"github.com/vitalvas/mqttv5"
@@ -114,6 +115,14 @@ func newDeviceCmd() *cobra.Command {
 				return dev.Run(ctx)
 			})
 
+			if cfg.HealthListen != "" {
+				healthServer := health.New(cfg.HealthListen, transport.IsConnected, logger)
+
+				group.Go(func(ctx context.Context) error {
+					return healthServer.Run(ctx)
+				})
+			}
+
 			group.Go(func(ctx context.Context) error {
 				return xcmd.WaitInterrupted(ctx)
 			})
@@ -123,6 +132,7 @@ func newDeviceCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&cfg.DeviceID, "device-id", "", "Device identifier (or MQTT_DEVICE_ID)")
+	cmd.Flags().StringVar(&cfg.HealthListen, "health-listen", "", "Address for HTTP health check endpoint (or MQTT_HEALTH_LISTEN, e.g. :8081)")
 
 	return cmd
 }
