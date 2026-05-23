@@ -6,6 +6,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"sync"
@@ -161,7 +162,7 @@ func testLogger() *slog.Logger {
 // ackAndCloseSession is a test helper that waits for an open message, sends an ack,
 // then sends a close message with an optional error after closeDelay.
 func ackAndCloseSession(mt *mockTransport, deviceID string, closeDelay time.Duration, closeError string) {
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(50 * time.Millisecond)
 
 	msgs := mt.getPublished()
 	var openMsg *tunnel.ControlMessage
@@ -211,7 +212,7 @@ func TestClientExec(t *testing.T) {
 		var buf bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			var openMsg *tunnel.ControlMessage
@@ -270,7 +271,7 @@ func TestClientExec(t *testing.T) {
 		var buf bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			var openMsg *tunnel.ControlMessage
@@ -314,7 +315,7 @@ func TestClientExec(t *testing.T) {
 		var buf bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			var openMsg *tunnel.ControlMessage
@@ -377,6 +378,84 @@ func TestClientExec(t *testing.T) {
 		assert.Contains(t, err.Error(), "remote error")
 		assert.Equal(t, 1, exitCode)
 	})
+
+	t.Run("acks_received_output", func(t *testing.T) {
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		payload := bytes.Repeat([]byte("x"), tunnel.FlowControlWindow/4)
+		var buf bytes.Buffer
+
+		go func() {
+			time.Sleep(50 * time.Millisecond)
+
+			msgs := mt.getPublished()
+			var openMsg *tunnel.ControlMessage
+
+			for _, msg := range msgs {
+				if msg.Topic == tunnel.InControlTopic("device-1") {
+					var cm tunnel.ControlMessage
+					if err := json.Unmarshal(msg.Payload, &cm); err == nil && cm.Type == tunnel.MessageTypeOpen {
+						openMsg = &cm
+					}
+				}
+			}
+
+			if openMsg == nil {
+				return
+			}
+
+			ack := tunnel.ControlMessage{
+				Type:      tunnel.MessageTypeOpenAck,
+				SessionID: openMsg.SessionID,
+				Success:   true,
+			}
+
+			ackData, _ := json.Marshal(ack)
+			mt.deliver(tunnel.OutControlTopic("device-1"), ackData)
+
+			frame := tunnel.EncodeDataFrame(0, payload)
+			mt.deliver(tunnel.OutDataTopic("device-1", openMsg.SessionID), frame)
+
+			time.Sleep(50 * time.Millisecond)
+
+			exitCode := 0
+			closeMsg := tunnel.ControlMessage{
+				Type:      tunnel.MessageTypeClose,
+				SessionID: openMsg.SessionID,
+				ExitCode:  &exitCode,
+			}
+
+			closeData, _ := json.Marshal(closeMsg)
+			mt.deliver(tunnel.OutControlTopic("device-1"), closeData)
+		}()
+
+		exitCode, err := c.RunExec(ctx, "large-output", &buf)
+		require.NoError(t, err)
+		assert.Equal(t, 0, exitCode)
+		assert.Len(t, buf.Bytes(), len(payload))
+
+		var acked bool
+		for _, msg := range mt.getPublished() {
+			if msg.Topic != tunnel.InControlTopic("device-1") {
+				continue
+			}
+
+			var cm tunnel.ControlMessage
+			if err := json.Unmarshal(msg.Payload, &cm); err != nil {
+				continue
+			}
+
+			if cm.Type == "ack" && cm.AckBytes == uint64(len(payload)) {
+				acked = true
+			}
+		}
+
+		assert.True(t, acked)
+	})
 }
 
 func TestClientTCP(t *testing.T) {
@@ -391,7 +470,7 @@ func TestClientTCP(t *testing.T) {
 			_ = c.RunTCP(ctx, "127.0.0.1:0", "target:8080")
 		}()
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 
 		mt.mu.Lock()
 		subCount := len(mt.subscriptions)
@@ -411,7 +490,7 @@ func TestClientTCP(t *testing.T) {
 
 		// Simulate device ack in background
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			for _, msg := range msgs {
@@ -436,7 +515,7 @@ func TestClientTCP(t *testing.T) {
 
 		c.handleTCPConn(ctx, connB, "target:8080")
 
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 
 		assert.Equal(t, 1, c.manager.Count())
 	})
@@ -450,7 +529,7 @@ func TestClientTCP(t *testing.T) {
 		_, connB := net.Pipe()
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			for _, msg := range msgs {
@@ -515,6 +594,30 @@ func TestClientHandleControl(t *testing.T) {
 		time.Sleep(50 * time.Millisecond)
 	})
 
+	t.Run("handle_ack_updates_exec_client_session", func(t *testing.T) {
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+
+		require.NoError(t, c.subscribe())
+
+		sess := tunnel.NewExecClientSession("sess-ack", mt, testLogger())
+		sess.FlowControl().AddSent(tunnel.FlowControlWindow)
+		require.NoError(t, c.manager.Add(sess))
+
+		assert.False(t, sess.FlowControl().CanSend(1))
+
+		ackMsg := tunnel.ControlMessage{
+			Type:      "ack",
+			SessionID: "sess-ack",
+			AckBytes:  tunnel.FlowControlWindow,
+		}
+
+		ackData, _ := json.Marshal(ackMsg)
+		mt.deliver(tunnel.OutControlTopic("device-1"), ackData)
+
+		assert.True(t, sess.FlowControl().CanSend(1))
+	})
+
 	t.Run("handle_close_message", func(t *testing.T) {
 		mt := newMockTransport("client-1")
 		c := New(mt, "device-1", testLogger())
@@ -542,7 +645,7 @@ func TestClientHandleControl(t *testing.T) {
 		closeData, _ := json.Marshal(closeMsg)
 		mt.deliver(tunnel.OutControlTopic("device-1"), closeData)
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 
 		assert.Equal(t, 0, c.manager.Count())
 	})
@@ -677,6 +780,56 @@ func TestClientSendClose(t *testing.T) {
 
 		assert.Equal(t, tunnel.MessageTypeClose, cm.Type)
 		assert.Equal(t, "sess-1", cm.SessionID)
+	})
+}
+
+type shortWriter struct{}
+
+func (shortWriter) Write(p []byte) (int, error) {
+	return len(p) - 1, nil
+}
+
+func TestClientWriteSessionData(t *testing.T) {
+	t.Run("sends_ack_at_interval", func(t *testing.T) {
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+		ackState := newSessionAckState()
+		payload := bytes.Repeat([]byte("x"), tunnel.FlowControlWindow/4)
+
+		var buf bytes.Buffer
+		require.NoError(t, c.writeSessionData(&buf, "sess-ack", &ackState, payload))
+		assert.Equal(t, payload, buf.Bytes())
+
+		msgs := mt.getPublished()
+		require.Len(t, msgs, 1)
+		assert.Equal(t, tunnel.InControlTopic("device-1"), msgs[0].Topic)
+
+		var cm tunnel.ControlMessage
+		require.NoError(t, json.Unmarshal(msgs[0].Payload, &cm))
+		assert.Equal(t, "ack", cm.Type)
+		assert.Equal(t, "sess-ack", cm.SessionID)
+		assert.Equal(t, uint64(len(payload)), cm.AckBytes)
+	})
+
+	t.Run("empty_data_is_noop", func(t *testing.T) {
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+		ackState := newSessionAckState()
+
+		var buf bytes.Buffer
+		require.NoError(t, c.writeSessionData(&buf, "sess-empty", &ackState, nil))
+		assert.Empty(t, buf.Bytes())
+		assert.Empty(t, mt.getPublished())
+	})
+
+	t.Run("short_write_returns_error", func(t *testing.T) {
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+		ackState := newSessionAckState()
+
+		err := c.writeSessionData(shortWriter{}, "sess-short", &ackState, []byte("data"))
+		assert.ErrorIs(t, err, io.ErrShortWrite)
+		assert.Empty(t, mt.getPublished())
 	})
 }
 
@@ -861,7 +1014,7 @@ func TestClientExecContextTimeout(t *testing.T) {
 		var buf bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			var openMsg *tunnel.ControlMessage
@@ -888,10 +1041,10 @@ func TestClientExecContextTimeout(t *testing.T) {
 			ackData, _ := json.Marshal(ack)
 			mt.deliver(tunnel.OutControlTopic("device-1"), ackData)
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			cancel()
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			exitCode := 0
 			closeMsg := tunnel.ControlMessage{
@@ -1017,7 +1170,7 @@ func TestClientSOCKS5(t *testing.T) {
 		}()
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			for _, msg := range msgs {
@@ -1045,7 +1198,7 @@ func TestClientSOCKS5(t *testing.T) {
 
 		c.handleSOCKS5Conn(ctx, connB)
 
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 		assert.Equal(t, 1, c.manager.Count())
 	})
 
@@ -1067,7 +1220,7 @@ func TestClientSOCKS5(t *testing.T) {
 		}()
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			for _, msg := range msgs {
@@ -1162,7 +1315,7 @@ func TestClientSOCKS5(t *testing.T) {
 			_ = c.RunSOCKS5(ctx, "127.0.0.1:0")
 		}()
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(50 * time.Millisecond)
 
 		mt.mu.Lock()
 		subCount := len(mt.subscriptions)

@@ -27,10 +27,11 @@ func TestRunStatus(t *testing.T) {
 			done <- RunStatus(ctx, mt, &buf)
 		}()
 
-		time.Sleep(200 * time.Millisecond)
-
-		published := mt.getPublished()
-		require.Len(t, published, 1)
+		var published []pubMsg
+		require.Eventually(t, func() bool {
+			published = mt.getPublished()
+			return len(published) == 1
+		}, time.Second, 10*time.Millisecond)
 		assert.Equal(t, tunnel.SharedPingTopic(), published[0].Topic)
 
 		var ping tunnel.ControlMessage
@@ -121,10 +122,11 @@ func TestRunStatus(t *testing.T) {
 			done <- RunStatus(ctx, mt, &buf)
 		}()
 
-		time.Sleep(200 * time.Millisecond)
-
-		published := mt.getPublished()
-		require.Len(t, published, 1)
+		var published []pubMsg
+		require.Eventually(t, func() bool {
+			published = mt.getPublished()
+			return len(published) == 1
+		}, time.Second, 10*time.Millisecond)
 
 		var ping tunnel.ControlMessage
 		require.NoError(t, json.Unmarshal(published[0].Payload, &ping))

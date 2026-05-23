@@ -24,6 +24,10 @@ type Device struct {
 	awsIoT      bool
 }
 
+type closeHookSetter interface {
+	SetOnClose(func(string))
+}
+
 func New(transport tunnel.Transport, deviceID string, logger *slog.Logger) *Device {
 	return &Device{
 		transport: transport,
@@ -204,6 +208,7 @@ func (d *Device) handleOpen(msg tunnel.ControlMessage) {
 		d.sendOpenAck(msg.SessionID, false, err.Error())
 		return
 	}
+	d.setSessionCloseHook(sess)
 
 	ctx := context.Background()
 	if msg.Timeout > 0 {
@@ -239,6 +244,12 @@ func (d *Device) handleClose(msg tunnel.ControlMessage) {
 
 	sess.Close()
 	d.manager.Remove(msg.SessionID)
+}
+
+func (d *Device) setSessionCloseHook(sess tunnel.Session) {
+	if s, ok := sess.(closeHookSetter); ok {
+		s.SetOnClose(d.manager.Remove)
+	}
 }
 
 func (d *Device) handleResize(msg tunnel.ControlMessage) {

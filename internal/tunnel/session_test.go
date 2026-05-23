@@ -228,6 +228,18 @@ func TestReorderBuffer(t *testing.T) {
 		}
 	})
 
+	t.Run("out_of_order_duplicate_keeps_first_payload", func(t *testing.T) {
+		rb := NewReorderBuffer(8)
+		defer rb.Close()
+
+		require.NoError(t, rb.Insert(1, []byte("first")))
+		require.NoError(t, rb.Insert(1, []byte("second")))
+		require.NoError(t, rb.Insert(0, []byte("zero")))
+
+		assert.Equal(t, []byte("zero"), <-rb.DataCh())
+		assert.Equal(t, []byte("first"), <-rb.DataCh())
+	})
+
 	t.Run("buffer_full_error", func(t *testing.T) {
 		rb := NewReorderBuffer(4)
 		defer rb.Close()
@@ -307,6 +319,18 @@ func TestFlowControl(t *testing.T) {
 		fc.UpdateAck(300)
 		assert.True(t, fc.CanSend(500))
 		assert.False(t, fc.CanSend(501))
+	})
+
+	t.Run("over_ack_does_not_underflow_window", func(t *testing.T) {
+		fc := NewFlowControl(1000)
+
+		fc.AddSent(500)
+		fc.UpdateAck(1000)
+
+		assert.True(t, fc.CanSend(1000))
+
+		fc.AddSent(1000)
+		assert.False(t, fc.CanSend(1))
 	})
 
 	t.Run("wait_for_window_cancelled", func(t *testing.T) {

@@ -184,6 +184,10 @@ func (rb *ReorderBuffer) Insert(seq uint32, data []byte) error {
 		return ErrBufferFull
 	}
 
+	if _, exists := rb.buf[seq]; exists {
+		return nil // duplicate out-of-order frame, keep the first copy
+	}
+
 	buf := make([]byte, len(data))
 	copy(buf, data)
 	rb.buf[seq] = buf
@@ -236,7 +240,12 @@ func (fc *FlowControl) CanSend(n uint64) bool {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 
-	return (fc.sentBytes - fc.ackedBytes + n) <= fc.windowSize
+	var outstanding uint64
+	if fc.sentBytes > fc.ackedBytes {
+		outstanding = fc.sentBytes - fc.ackedBytes
+	}
+
+	return outstanding+n <= fc.windowSize
 }
 
 func (fc *FlowControl) AddSent(n uint64) {
@@ -249,6 +258,10 @@ func (fc *FlowControl) AddSent(n uint64) {
 func (fc *FlowControl) UpdateAck(acked uint64) {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
+
+	if acked > fc.sentBytes {
+		acked = fc.sentBytes
+	}
 
 	if acked > fc.ackedBytes {
 		fc.ackedBytes = acked

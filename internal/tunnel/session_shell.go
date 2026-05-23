@@ -28,6 +28,7 @@ type ShellSession struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	closeOnce sync.Once
+	onClose   func(string)
 }
 
 func NewShellSession(id string, transport Transport, controlTopic, dataTopic string, logger *slog.Logger) *ShellSession {
@@ -46,6 +47,10 @@ func NewShellSession(id string, transport Transport, controlTopic, dataTopic str
 
 func (s *ShellSession) ID() string   { return s.id }
 func (s *ShellSession) Mode() string { return SessionModeShell }
+
+func (s *ShellSession) SetOnClose(fn func(string)) {
+	s.onClose = fn
+}
 
 func (s *ShellSession) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
@@ -186,6 +191,10 @@ func (s *ShellSession) Close() error {
 
 		if s.ptmx != nil {
 			s.ptmx.Close()
+		}
+
+		if s.onClose != nil {
+			s.onClose(s.id)
 		}
 	})
 

@@ -20,6 +20,35 @@ const (
 	pingTimeout    = 2 * time.Second
 )
 
+type flowControlUpdater interface {
+	UpdateFlowControl(acked uint64)
+}
+
+type closeHookSetter interface {
+	SetOnClose(func(string))
+}
+
+type sessionAckState struct {
+	total    uint64
+	last     uint64
+	interval uint64
+}
+
+func newSessionAckState() sessionAckState {
+	return sessionAckState{interval: uint64(tunnel.FlowControlWindow / 4)}
+}
+
+func (s *sessionAckState) record(n int) (uint64, bool) {
+	s.total += uint64(n)
+	if s.total-s.last < s.interval {
+		return 0, false
+	}
+
+	s.last = s.total
+
+	return s.total, true
+}
+
 type Client struct {
 	transport tunnel.Transport
 	deviceID  string
@@ -44,6 +73,12 @@ func New(transport tunnel.Transport, deviceID string, logger *slog.Logger) *Clie
 
 func (c *Client) CloseAllSessions() {
 	c.manager.CloseAll()
+}
+
+func (c *Client) setSessionCloseHook(sess tunnel.Session) {
+	if s, ok := sess.(closeHookSetter); ok {
+		s.SetOnClose(c.manager.Remove)
+	}
 }
 
 func (c *Client) subscribe() error {
@@ -115,6 +150,7 @@ func (c *Client) handleTCPConn(ctx context.Context, conn net.Conn, target string
 		DataTopic:    dataTopic,
 		Logger:       c.logger,
 	})
+	c.setSessionCloseHook(sess)
 
 	if err := c.manager.Add(sess); err != nil {
 		c.logger.Error("add session", "error", err)
@@ -208,6 +244,7 @@ func (c *Client) handleSOCKS5Conn(ctx context.Context, conn net.Conn) {
 		DataTopic:    dataTopic,
 		Logger:       c.logger,
 	})
+	c.setSessionCloseHook(sess)
 
 	if err := c.manager.Add(sess); err != nil {
 		c.logger.Error("add session", "error", err)
@@ -297,63 +334,101 @@ func (c *Client) RunExec(ctx context.Context, command string, stdout io.Writer) 
 		return 1, fmt.Errorf("device rejected exec session: %s", ack.Error)
 	}
 
+	ackState := newSessionAckState()
+
 	for {
 		select {
 		case <-ctx.Done():
 			c.sendClose(sessionID)
 
-			// Wait for device to send remaining output and close
-			drainTimeout := time.After(3 * time.Second)
-			for {
-				select {
-				case data := <-sess.DataCh():
-					stdout.Write(data)
-				case closeMsg := <-closeCh:
-					drainDone := time.After(100 * time.Millisecond)
-				drainAfterClose:
-					for {
-						select {
-						case data := <-sess.DataCh():
-							stdout.Write(data)
-						case <-drainDone:
-							break drainAfterClose
-						}
-					}
-
-					if closeMsg.ExitCode != nil {
-						return *closeMsg.ExitCode, nil
-					}
-
-					return 0, nil
-				case <-drainTimeout:
-					return 130, nil
-				}
+			return c.waitExecCloseAfterCancel(sess, closeCh, sessionID, &ackState, stdout)
+		case data, ok := <-sess.DataCh():
+			if !ok {
+				return 0, nil
 			}
-		case data := <-sess.DataCh():
-			stdout.Write(data)
+			if err := c.writeSessionData(stdout, sessionID, &ackState, data); err != nil {
+				return 1, err
+			}
 		case closeMsg := <-closeCh:
-			drainDone := time.After(500 * time.Millisecond)
-		drainNormal:
-			for {
-				select {
-				case data := <-sess.DataCh():
-					stdout.Write(data)
-				case <-drainDone:
-					break drainNormal
-				}
+			if err := c.drainSessionData(500*time.Millisecond, sess, sessionID, &ackState, stdout); err != nil {
+				return 1, err
+			}
+
+			return execCloseResult(closeMsg)
+		}
+	}
+}
+
+func (c *Client) waitExecCloseAfterCancel(
+	sess *tunnel.ExecClientSession,
+	closeCh <-chan tunnel.ControlMessage,
+	sessionID string,
+	ackState *sessionAckState,
+	stdout io.Writer,
+) (int, error) {
+	drainTimeout := time.NewTimer(3 * time.Second)
+	defer drainTimeout.Stop()
+
+	for {
+		select {
+		case data, ok := <-sess.DataCh():
+			if !ok {
+				return 130, nil
+			}
+			if err := c.writeSessionData(stdout, sessionID, ackState, data); err != nil {
+				return 1, err
+			}
+		case closeMsg := <-closeCh:
+			if err := c.drainSessionData(100*time.Millisecond, sess, sessionID, ackState, stdout); err != nil {
+				return 1, err
 			}
 
 			if closeMsg.ExitCode != nil {
 				return *closeMsg.ExitCode, nil
 			}
 
-			if closeMsg.Error != "" {
-				return 1, fmt.Errorf("remote error: %s", closeMsg.Error)
-			}
-
 			return 0, nil
+		case <-drainTimeout.C:
+			return 130, nil
 		}
 	}
+}
+
+func (c *Client) drainSessionData(
+	timeout time.Duration,
+	sess *tunnel.ExecClientSession,
+	sessionID string,
+	ackState *sessionAckState,
+	w io.Writer,
+) error {
+	drainDone := time.NewTimer(timeout)
+	defer drainDone.Stop()
+
+	for {
+		select {
+		case data, ok := <-sess.DataCh():
+			if !ok {
+				return nil
+			}
+			if err := c.writeSessionData(w, sessionID, ackState, data); err != nil {
+				return err
+			}
+		case <-drainDone.C:
+			return nil
+		}
+	}
+}
+
+func execCloseResult(closeMsg tunnel.ControlMessage) (int, error) {
+	if closeMsg.ExitCode != nil {
+		return *closeMsg.ExitCode, nil
+	}
+
+	if closeMsg.Error != "" {
+		return 1, fmt.Errorf("remote error: %s", closeMsg.Error)
+	}
+
+	return 0, nil
 }
 
 func (c *Client) RunPing(ctx context.Context, count int, interval time.Duration, w io.Writer) error {
@@ -418,8 +493,15 @@ type pingStats struct {
 }
 
 func (c *Client) printPingStats(w io.Writer, stats pingStats) {
-	loss := float64(stats.Sent-stats.Received) / float64(stats.Sent) * 100
 	fmt.Fprintf(w, "\n--- %s ping statistics ---\n", c.deviceID)
+
+	if stats.Sent == 0 {
+		fmt.Fprintln(w, "0 packets transmitted, 0 received, 0% packet loss")
+
+		return
+	}
+
+	loss := float64(stats.Sent-stats.Received) / float64(stats.Sent) * 100
 	fmt.Fprintf(w, "%d packets transmitted, %d received, %.0f%% packet loss\n", stats.Sent, stats.Received, loss)
 
 	if stats.Received > 0 {
@@ -527,7 +609,7 @@ func (c *Client) handleControl(_ string, payload []byte) {
 
 		c.manager.Touch(msg.SessionID)
 
-		if s, ok := sess.(*tunnel.TCPSession); ok {
+		if s, ok := sess.(flowControlUpdater); ok {
 			s.UpdateFlowControl(msg.AckBytes)
 		}
 	}
@@ -670,6 +752,47 @@ func (c *Client) sendClose(sessionID string) error {
 		QoS:         1,
 		ContentType: "application/json",
 	})
+}
+
+func (c *Client) sendAck(sessionID string, bytes uint64) error {
+	msg := tunnel.ControlMessage{
+		Type:      "ack",
+		SessionID: sessionID,
+		AckBytes:  bytes,
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+
+	return c.transport.Publish(tunnel.PubMessage{
+		Topic:       tunnel.InControlTopic(c.deviceID),
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	})
+}
+
+func (c *Client) writeSessionData(w io.Writer, sessionID string, ackState *sessionAckState, data []byte) error {
+	if len(data) == 0 {
+		return nil
+	}
+
+	n, err := w.Write(data)
+	if err != nil {
+		return err
+	}
+
+	if uint64(n) < uint64(len(data)) {
+		return io.ErrShortWrite
+	}
+
+	if ackBytes, ok := ackState.record(len(data)); ok {
+		return c.sendAck(sessionID, ackBytes)
+	}
+
+	return nil
 }
 
 func getTermSize() (cols, rows uint16) {

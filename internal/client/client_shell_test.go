@@ -50,7 +50,7 @@ func TestRunShellIO(t *testing.T) { //nolint:gocyclo // test function with many 
 		var stderr bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			var openMsg *tunnel.ControlMessage
@@ -81,7 +81,7 @@ func TestRunShellIO(t *testing.T) { //nolint:gocyclo // test function with many 
 			frame := tunnel.EncodeDataFrame(0, []byte("shell-output"))
 			mt.deliver(tunnel.OutDataTopic("device-1", openMsg.SessionID), frame)
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			closeMsg := tunnel.ControlMessage{
 				Type:      tunnel.MessageTypeClose,
@@ -140,7 +140,7 @@ func TestRunShellIO(t *testing.T) { //nolint:gocyclo // test function with many 
 		var stdout, stderr bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			var openMsg *tunnel.ControlMessage
@@ -191,7 +191,7 @@ func TestRunShellIO(t *testing.T) { //nolint:gocyclo // test function with many 
 		var stdout, stderr bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			var openMsg *tunnel.ControlMessage
@@ -223,7 +223,7 @@ func TestRunShellIO(t *testing.T) { //nolint:gocyclo // test function with many 
 			pw.Write([]byte("user-input"))
 			pw.Close()
 
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(100 * time.Millisecond)
 
 			// Verify input was published
 			msgs = mt.getPublished()
@@ -271,7 +271,7 @@ func TestRunShellIO(t *testing.T) { //nolint:gocyclo // test function with many 
 		var stdout, stderr bytes.Buffer
 
 		go func() {
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 
 			msgs := mt.getPublished()
 			var openMsg *tunnel.ControlMessage
@@ -298,7 +298,7 @@ func TestRunShellIO(t *testing.T) { //nolint:gocyclo // test function with many 
 			ackData, _ := json.Marshal(ack)
 			mt.deliver(tunnel.OutControlTopic("device-1"), ackData)
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			cancel()
 		}()
 

@@ -23,6 +23,7 @@ type TCPSession struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	closeOnce sync.Once
+	onClose   func(string)
 }
 
 type TCPSessionConfig struct {
@@ -51,6 +52,10 @@ func NewTCPSession(cfg TCPSessionConfig) *TCPSession {
 
 func (s *TCPSession) ID() string   { return s.id }
 func (s *TCPSession) Mode() string { return SessionModeTCP }
+
+func (s *TCPSession) SetOnClose(fn func(string)) {
+	s.onClose = fn
+}
 
 func (s *TCPSession) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
@@ -124,6 +129,10 @@ func (s *TCPSession) Close() error {
 		s.reorder.Close()
 		s.conn.Close()
 		s.sendCloseMsg()
+
+		if s.onClose != nil {
+			s.onClose(s.id)
+		}
 	})
 
 	return nil

@@ -109,8 +109,7 @@ func (c *Client) runShellIO(ctx context.Context, sio shellIO) error {
 	closeCh := c.registerCloseCh(sessionID)
 	defer c.unregisterCloseCh(sessionID)
 
-	fc := tunnel.NewFlowControl(tunnel.FlowControlWindow)
-	seqWriter := tunnel.NewSequenceWriter(c.transport, tunnel.InDataTopic(c.deviceID, sessionID), fc)
+	seqWriter := tunnel.NewSequenceWriter(c.transport, tunnel.InDataTopic(c.deviceID, sessionID), sess.FlowControl())
 
 	go func() {
 		buf := make([]byte, tunnel.MaxPayloadSize)
@@ -129,19 +128,31 @@ func (c *Client) runShellIO(ctx context.Context, sio shellIO) error {
 		}
 	}()
 
+	ackState := newSessionAckState()
+
 	for {
 		select {
 		case <-ctx.Done():
 			return nil
-		case data := <-sess.DataCh():
-			sio.Stdout.Write(data)
+		case data, ok := <-sess.DataCh():
+			if !ok {
+				return nil
+			}
+			if err := c.writeSessionData(sio.Stdout, sessionID, &ackState, data); err != nil {
+				return err
+			}
 		case closeMsg := <-closeCh:
 			drainDone := time.After(100 * time.Millisecond)
 		drain:
 			for {
 				select {
-				case data := <-sess.DataCh():
-					sio.Stdout.Write(data)
+				case data, ok := <-sess.DataCh():
+					if !ok {
+						break drain
+					}
+					if err := c.writeSessionData(sio.Stdout, sessionID, &ackState, data); err != nil {
+						return err
+					}
 				case <-drainDone:
 					break drain
 				}

@@ -28,6 +28,7 @@ type ExecSession struct {
 	mu        sync.Mutex
 	pgid      int
 	closeOnce sync.Once
+	onClose   func(string)
 }
 
 type ExecSessionConfig struct {
@@ -56,6 +57,10 @@ func NewExecSession(cfg ExecSessionConfig) *ExecSession {
 
 func (s *ExecSession) ID() string   { return s.id }
 func (s *ExecSession) Mode() string { return SessionModeExec }
+
+func (s *ExecSession) SetOnClose(fn func(string)) {
+	s.onClose = fn
+}
 
 func (s *ExecSession) Start(ctx context.Context) error {
 	s.ctx, s.cancel = context.WithCancel(ctx)
@@ -194,6 +199,10 @@ func (s *ExecSession) Close() error {
 		}
 
 		s.reorder.Close()
+
+		if s.onClose != nil {
+			s.onClose(s.id)
+		}
 	})
 
 	return nil
@@ -239,6 +248,7 @@ type ExecClientSession struct {
 
 	closeOnce sync.Once
 	cancel    context.CancelFunc
+	onClose   func(string)
 }
 
 func NewExecClientSession(id string, transport Transport, logger *slog.Logger) *ExecClientSession {
@@ -254,6 +264,10 @@ func NewExecClientSession(id string, transport Transport, logger *slog.Logger) *
 func (s *ExecClientSession) ID() string   { return s.id }
 func (s *ExecClientSession) Mode() string { return SessionModeExec }
 
+func (s *ExecClientSession) SetOnClose(fn func(string)) {
+	s.onClose = fn
+}
+
 func (s *ExecClientSession) Start(ctx context.Context) error {
 	_, s.cancel = context.WithCancel(ctx)
 
@@ -267,6 +281,10 @@ func (s *ExecClientSession) Close() error {
 		}
 
 		s.reorder.Close()
+
+		if s.onClose != nil {
+			s.onClose(s.id)
+		}
 	})
 
 	return nil
@@ -282,6 +300,14 @@ func (s *ExecClientSession) DataCh() <-chan []byte {
 	return s.reorder.DataCh()
 }
 
-func (s *ExecClientSession) UpdateAck(acked uint64) {
+func (s *ExecClientSession) FlowControl() *FlowControl {
+	return s.fc
+}
+
+func (s *ExecClientSession) UpdateFlowControl(acked uint64) {
 	s.fc.UpdateAck(acked)
+}
+
+func (s *ExecClientSession) UpdateAck(acked uint64) {
+	s.UpdateFlowControl(acked)
 }

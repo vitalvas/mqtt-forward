@@ -208,6 +208,9 @@ func TestDevice(t *testing.T) { //nolint:gocyclo // test function with many subt
 		require.NotNil(t, ackMsg)
 		assert.True(t, ackMsg.Success)
 		assert.Contains(t, string(output), "device-exec-test")
+		assert.Eventually(t, func() bool {
+			return dev.manager.Count() == 0
+		}, time.Second, 10*time.Millisecond)
 	})
 
 	t.Run("tcp_session_with_echo_server", func(t *testing.T) {
