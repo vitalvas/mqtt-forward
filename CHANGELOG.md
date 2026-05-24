@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/vitalvas/mqtt-forward/compare/v0.9.0...v0.9.1) (2026-05-24)
+
+
+### Bug Fixes
+
+* **socks5:** log handshake failures at debug, not error ([f4bfd68](https://github.com/vitalvas/mqtt-forward/commit/f4bfd689de00d69204f29ac1ed713ed3e6b82a92))
+
 ## [0.9.0](https://github.com/vitalvas/mqtt-forward/compare/v0.8.1...v0.9.0) (2026-05-24)
 
 
