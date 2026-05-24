@@ -16,8 +16,17 @@ import (
 )
 
 const (
-	openAckTimeout = 10 * time.Second
-	pingTimeout    = 2 * time.Second
+	openAckTimeout            = 10 * time.Second
+	pingTimeout               = 2 * time.Second
+	sessionKeepaliveMaxMisses = 3
+)
+
+// sessionKeepaliveInterval is the cadence of per-session keepalive pings.
+// sessionKeepalivePingTimeout is how long a single keepalive ping waits for
+// a pong before counting as a miss. Both are vars so tests can shorten them.
+var (
+	sessionKeepaliveInterval    = 5 * time.Second
+	sessionKeepalivePingTimeout = pingTimeout
 )
 
 type flowControlUpdater interface {
@@ -561,6 +570,90 @@ func (c *Client) sendPing(ctx context.Context, pingID string, ts time.Time) (tim
 
 func (c *Client) RunShell(ctx context.Context) error {
 	return c.runShell(ctx)
+}
+
+type sessionCloser interface {
+	Close() error
+}
+
+// runSessionKeepalive pings the device every sessionKeepaliveInterval and
+// closes the session if sessionKeepaliveMaxMisses consecutive pings time out.
+// Detects a dead remote (e.g. device restart) without waiting for stale cleanup.
+func (c *Client) runSessionKeepalive(ctx context.Context, sessionID string, sess sessionCloser) {
+	ticker := time.NewTicker(sessionKeepaliveInterval)
+	defer ticker.Stop()
+
+	misses := 0
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+
+		pingID := fmt.Sprintf("ka:%s:%d", sessionID, time.Now().UnixNano())
+
+		if err := c.sendKeepalivePing(ctx, pingID); err != nil {
+			misses++
+			c.logger.Debug("session keepalive miss", "session_id", sessionID, "misses", misses, "error", err)
+
+			if misses >= sessionKeepaliveMaxMisses {
+				c.logger.Info("session keepalive failed, closing session", "session_id", sessionID)
+				sess.Close()
+
+				return
+			}
+
+			continue
+		}
+
+		misses = 0
+	}
+}
+
+func (c *Client) sendKeepalivePing(ctx context.Context, pingID string) error {
+	ackCh := make(chan tunnel.ControlMessage, 1)
+
+	c.mu.Lock()
+	c.ackChans[pingID] = ackCh
+	c.mu.Unlock()
+
+	defer func() {
+		c.mu.Lock()
+		delete(c.ackChans, pingID)
+		c.mu.Unlock()
+	}()
+
+	msg := tunnel.ControlMessage{
+		Type:      tunnel.MessageTypePing,
+		SessionID: pingID,
+		Timestamp: time.Now().UnixNano(),
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		return err
+	}
+
+	if err := c.transport.Publish(tunnel.PubMessage{
+		Topic:         tunnel.InControlTopic(c.deviceID),
+		Payload:       data,
+		QoS:           0,
+		ContentType:   "application/json",
+		ResponseTopic: tunnel.OutControlTopic(c.deviceID),
+	}); err != nil {
+		return err
+	}
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(sessionKeepalivePingTimeout):
+		return fmt.Errorf("keepalive ping timeout")
+	case <-ackCh:
+		return nil
+	}
 }
 
 func (c *Client) handleControl(_ string, payload []byte) {

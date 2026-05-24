@@ -3,6 +3,7 @@ package device
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net"
 	"sync"
@@ -864,5 +865,117 @@ func TestDeviceHandlePing(t *testing.T) {
 		assert.Equal(t, "ping-123", pong.SessionID)
 		assert.Equal(t, ping.Timestamp, pong.Timestamp)
 		assert.Equal(t, tunnel.OutControlTopic("device-1"), pubs[0].Topic)
+	})
+}
+
+func TestDeviceUnknownSessionReject(t *testing.T) {
+	t.Run("data_for_unknown_session_publishes_close", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		frame := tunnel.EncodeDataFrame(0, []byte("hello"))
+		inTopic := tunnel.InDataTopic("device-1", "ghost-session")
+
+		dev.handleData(inTopic, frame)
+
+		pubs := mt.getPublished()
+		require.Len(t, pubs, 1)
+		assert.Equal(t, tunnel.OutControlTopic("device-1"), pubs[0].Topic)
+
+		var msg tunnel.ControlMessage
+		require.NoError(t, json.Unmarshal(pubs[0].Payload, &msg))
+		assert.Equal(t, tunnel.MessageTypeClose, msg.Type)
+		assert.Equal(t, "ghost-session", msg.SessionID)
+		assert.Equal(t, "unknown session", msg.Error)
+	})
+
+	t.Run("ack_for_unknown_session_publishes_close", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		dev.handleAck(tunnel.ControlMessage{
+			Type:      "ack",
+			SessionID: "ghost-2",
+			AckBytes:  1024,
+		})
+
+		pubs := mt.getPublished()
+		require.Len(t, pubs, 1)
+
+		var msg tunnel.ControlMessage
+		require.NoError(t, json.Unmarshal(pubs[0].Payload, &msg))
+		assert.Equal(t, tunnel.MessageTypeClose, msg.Type)
+		assert.Equal(t, "ghost-2", msg.SessionID)
+		assert.Equal(t, "unknown session", msg.Error)
+	})
+
+	t.Run("rate_limited_per_session", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		for range 5 {
+			dev.sendUnknownSessionReject("noisy-session")
+		}
+
+		pubs := mt.getPublished()
+		assert.Len(t, pubs, 1, "expected only one reject within throttle window")
+	})
+
+	t.Run("gc_reject_map_drops_stale_entries", func(t *testing.T) {
+		dev := New(newMockTransport("device-1"), "device-1", testLogger())
+
+		stale := time.Now().Add(-2 * unknownSessionRejectThrottle)
+		for i := range 260 {
+			dev.lastRejectedAt[fmt.Sprintf("old-%d", i)] = stale
+		}
+
+		dev.rejectMu.Lock()
+		dev.gcRejectMapLocked()
+		size := len(dev.lastRejectedAt)
+		dev.rejectMu.Unlock()
+
+		assert.Zero(t, size, "stale entries should have been GC'd")
+	})
+
+	t.Run("known_session_does_not_publish_reject", func(t *testing.T) {
+		mt := newMockTransport("device-1")
+		dev := New(mt, "device-1", testLogger())
+
+		conn1, conn2 := net.Pipe()
+		defer conn1.Close()
+		defer conn2.Close()
+
+		sess := tunnel.NewTCPSession(tunnel.TCPSessionConfig{
+			ID:           "real-session",
+			Conn:         conn2,
+			Transport:    mt,
+			ControlTopic: tunnel.OutControlTopic("device-1"),
+			DataTopic:    tunnel.OutDataTopic("device-1", "real-session"),
+			Logger:       testLogger(),
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		require.NoError(t, sess.Start(ctx))
+		require.NoError(t, dev.manager.Add(sess))
+
+		frame := tunnel.EncodeDataFrame(0, []byte("payload"))
+
+		mt.mu.Lock()
+		mt.published = nil
+		mt.mu.Unlock()
+
+		dev.handleData(tunnel.InDataTopic("device-1", "real-session"), frame)
+
+		time.Sleep(50 * time.Millisecond)
+
+		for _, p := range mt.getPublished() {
+			var msg tunnel.ControlMessage
+			if json.Unmarshal(p.Payload, &msg) != nil {
+				continue
+			}
+			assert.NotEqual(t, "unknown session", msg.Error, "should not reject known session")
+		}
 	})
 }

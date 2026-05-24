@@ -249,6 +249,7 @@ type ExecClientSession struct {
 	closeOnce sync.Once
 	cancel    context.CancelFunc
 	onClose   func(string)
+	done      chan struct{}
 }
 
 func NewExecClientSession(id string, transport Transport, logger *slog.Logger) *ExecClientSession {
@@ -258,7 +259,13 @@ func NewExecClientSession(id string, transport Transport, logger *slog.Logger) *
 		logger:    logger,
 		reorder:   NewReorderBuffer(ReorderBufSize),
 		fc:        NewFlowControl(FlowControlWindow),
+		done:      make(chan struct{}),
 	}
+}
+
+// Done returns a channel that is closed when the session has been closed.
+func (s *ExecClientSession) Done() <-chan struct{} {
+	return s.done
 }
 
 func (s *ExecClientSession) ID() string   { return s.id }
@@ -281,6 +288,7 @@ func (s *ExecClientSession) Close() error {
 		}
 
 		s.reorder.Close()
+		close(s.done)
 
 		if s.onClose != nil {
 			s.onClose(s.id)

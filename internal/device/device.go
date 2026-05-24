@@ -7,12 +7,15 @@ import (
 	"log/slog"
 	"net"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/vitalvas/mqtt-forward/internal/shadow"
 	"github.com/vitalvas/mqtt-forward/internal/system"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 )
+
+const unknownSessionRejectThrottle = 5 * time.Second
 
 type Device struct {
 	transport   tunnel.Transport
@@ -22,6 +25,9 @@ type Device struct {
 	healthCheck func() bool
 	version     string
 	awsIoT      bool
+
+	rejectMu       sync.Mutex
+	lastRejectedAt map[string]time.Time
 }
 
 type closeHookSetter interface {
@@ -30,10 +36,11 @@ type closeHookSetter interface {
 
 func New(transport tunnel.Transport, deviceID string, logger *slog.Logger) *Device {
 	return &Device{
-		transport: transport,
-		deviceID:  deviceID,
-		logger:    logger,
-		manager:   tunnel.NewSessionManager(logger),
+		transport:      transport,
+		deviceID:       deviceID,
+		logger:         logger,
+		manager:        tunnel.NewSessionManager(logger),
+		lastRejectedAt: make(map[string]time.Time),
 	}
 }
 
@@ -144,6 +151,7 @@ func (d *Device) handleData(topic string, payload []byte) {
 	sess, err := d.manager.Get(parsed.SessionID)
 	if err != nil {
 		d.logger.Debug("data for unknown session", "session_id", parsed.SessionID)
+		d.sendUnknownSessionReject(parsed.SessionID)
 		return
 	}
 
@@ -285,6 +293,7 @@ func (d *Device) handlePing(msg tunnel.ControlMessage) {
 func (d *Device) handleAck(msg tunnel.ControlMessage) {
 	sess, err := d.manager.Get(msg.SessionID)
 	if err != nil {
+		d.sendUnknownSessionReject(msg.SessionID)
 		return
 	}
 
@@ -300,6 +309,62 @@ func (d *Device) handleAck(msg tunnel.ControlMessage) {
 
 type flowControlUpdater interface {
 	UpdateFlowControl(acked uint64)
+}
+
+// gcRejectMapLocked removes throttle entries older than the throttle window
+// when the map exceeds 256 entries. Caller must hold rejectMu.
+func (d *Device) gcRejectMapLocked() {
+	if len(d.lastRejectedAt) <= 256 {
+		return
+	}
+
+	now := time.Now()
+	for id, t := range d.lastRejectedAt {
+		if now.Sub(t) > unknownSessionRejectThrottle {
+			delete(d.lastRejectedAt, id)
+		}
+	}
+}
+
+// sendUnknownSessionReject tells the client that the given sessionID is not
+// recognized by the device. Mirrors TCP RST-on-unknown-segment: the client
+// learns to stop talking about this session instead of waiting for a keepalive
+// or stale-cleanup timeout.
+//
+// Rate-limited per sessionID so a noisy client cannot trigger a publish flood.
+func (d *Device) sendUnknownSessionReject(sessionID string) {
+	d.rejectMu.Lock()
+
+	if last, ok := d.lastRejectedAt[sessionID]; ok && time.Since(last) < unknownSessionRejectThrottle {
+		d.rejectMu.Unlock()
+		return
+	}
+
+	d.lastRejectedAt[sessionID] = time.Now()
+	d.gcRejectMapLocked()
+
+	d.rejectMu.Unlock()
+
+	msg := tunnel.ControlMessage{
+		Type:      tunnel.MessageTypeClose,
+		SessionID: sessionID,
+		Error:     "unknown session",
+	}
+
+	data, err := json.Marshal(msg)
+	if err != nil {
+		d.logger.Error("marshal unknown-session reject", "error", err)
+		return
+	}
+
+	if err := d.transport.Publish(tunnel.PubMessage{
+		Topic:       tunnel.OutControlTopic(d.deviceID),
+		Payload:     data,
+		QoS:         1,
+		ContentType: "application/json",
+	}); err != nil {
+		d.logger.Error("publish unknown-session reject", "error", err)
+	}
 }
 
 func (d *Device) sendOpenAck(sessionID string, success bool, errMsg string) {

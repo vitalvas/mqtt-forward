@@ -1457,3 +1457,115 @@ func TestClientPing(t *testing.T) {
 		assert.Contains(t, output, "ping statistics")
 	})
 }
+
+type fakeCloser struct {
+	closed chan struct{}
+	once   sync.Once
+}
+
+func newFakeCloser() *fakeCloser {
+	return &fakeCloser{closed: make(chan struct{})}
+}
+
+func (f *fakeCloser) Close() error {
+	f.once.Do(func() { close(f.closed) })
+	return nil
+}
+
+func TestRunSessionKeepalive(t *testing.T) {
+	t.Run("closes_session_after_max_misses", func(t *testing.T) {
+		origInterval, origTimeout := sessionKeepaliveInterval, sessionKeepalivePingTimeout
+		sessionKeepaliveInterval = 10 * time.Millisecond
+		sessionKeepalivePingTimeout = 20 * time.Millisecond
+		defer func() {
+			sessionKeepaliveInterval = origInterval
+			sessionKeepalivePingTimeout = origTimeout
+		}()
+
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+
+		sess := newFakeCloser()
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		done := make(chan struct{})
+		go func() {
+			c.runSessionKeepalive(ctx, "sess-x", sess)
+			close(done)
+		}()
+
+		select {
+		case <-sess.closed:
+		case <-time.After(2 * time.Second):
+			t.Fatal("session was not closed after keepalive misses")
+		}
+
+		select {
+		case <-done:
+		case <-time.After(time.Second):
+			t.Fatal("keepalive goroutine did not exit")
+		}
+	})
+
+	t.Run("does_not_close_when_pongs_arrive", func(t *testing.T) {
+		origInterval, origTimeout := sessionKeepaliveInterval, sessionKeepalivePingTimeout
+		sessionKeepaliveInterval = 10 * time.Millisecond
+		sessionKeepalivePingTimeout = 100 * time.Millisecond
+		defer func() {
+			sessionKeepaliveInterval = origInterval
+			sessionKeepalivePingTimeout = origTimeout
+		}()
+
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		stop := make(chan struct{})
+		defer close(stop)
+
+		go func() {
+			for {
+				select {
+				case <-stop:
+					return
+				case <-time.After(2 * time.Millisecond):
+				}
+
+				for _, msg := range mt.getPublished() {
+					var pm tunnel.ControlMessage
+					if err := json.Unmarshal(msg.Payload, &pm); err != nil {
+						continue
+					}
+					if pm.Type != tunnel.MessageTypePing {
+						continue
+					}
+
+					pong := tunnel.ControlMessage{Type: tunnel.MessageTypePong, SessionID: pm.SessionID}
+					data, _ := json.Marshal(pong)
+					mt.deliver(tunnel.OutControlTopic("device-1"), data)
+				}
+			}
+		}()
+
+		sess := newFakeCloser()
+
+		keepDone := make(chan struct{})
+		go func() {
+			c.runSessionKeepalive(ctx, "sess-y", sess)
+			close(keepDone)
+		}()
+
+		select {
+		case <-sess.closed:
+			t.Fatal("session was closed even though pongs arrived")
+		case <-time.After(200 * time.Millisecond):
+		}
+
+		cancel()
+		<-keepDone
+	})
+}

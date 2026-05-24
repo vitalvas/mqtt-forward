@@ -128,11 +128,16 @@ func (c *Client) runShellIO(ctx context.Context, sio shellIO) error {
 		}
 	}()
 
+	go c.runSessionKeepalive(ctx, sessionID, sess)
+
 	ackState := newSessionAckState()
 
 	for {
 		select {
 		case <-ctx.Done():
+			return nil
+		case <-sess.Done():
+			fmt.Fprint(sio.Stderr, "\r\nSession ended: remote unreachable\r\n")
 			return nil
 		case data, ok := <-sess.DataCh():
 			if !ok {

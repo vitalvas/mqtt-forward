@@ -24,7 +24,7 @@ const (
 	ReorderBufSize = 64
 
 	FlowControlWindow = 256 * 1024
-	StaleTimeout      = 5 * 60 // seconds
+	StaleTimeout      = 60 // seconds; defense-in-depth backstop for the per-session keepalive
 
 	topicPrefix  = "tunnel"
 	topicIn      = "in"

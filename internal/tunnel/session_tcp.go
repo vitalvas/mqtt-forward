@@ -24,6 +24,7 @@ type TCPSession struct {
 	cancel    context.CancelFunc
 	closeOnce sync.Once
 	onClose   func(string)
+	done      chan struct{}
 }
 
 type TCPSessionConfig struct {
@@ -47,7 +48,13 @@ func NewTCPSession(cfg TCPSessionConfig) *TCPSession {
 		reorder:      NewReorderBuffer(ReorderBufSize),
 		writer:       NewSequenceWriter(cfg.Transport, cfg.DataTopic, fc),
 		fc:           fc,
+		done:         make(chan struct{}),
 	}
+}
+
+// Done returns a channel that is closed when the session has been closed.
+func (s *TCPSession) Done() <-chan struct{} {
+	return s.done
 }
 
 func (s *TCPSession) ID() string   { return s.id }
@@ -129,6 +136,7 @@ func (s *TCPSession) Close() error {
 		s.reorder.Close()
 		s.conn.Close()
 		s.sendCloseMsg()
+		close(s.done)
 
 		if s.onClose != nil {
 			s.onClose(s.id)

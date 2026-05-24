@@ -280,4 +280,37 @@ func TestTCPSession(t *testing.T) {
 		require.NoError(t, sess.Close())
 		require.NoError(t, sess.Close())
 	})
+
+	t.Run("done_closes_on_close", func(t *testing.T) {
+		mt := NewMockTransport("device-1")
+		_, connB := net.Pipe()
+
+		sess := NewTCPSession(TCPSessionConfig{
+			ID:           "sess-done",
+			Conn:         connB,
+			Transport:    mt,
+			ControlTopic: OutControlTopic("device-1"),
+			DataTopic:    OutDataTopic("device-1", "sess-done"),
+			Logger:       testLogger(),
+		})
+
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+
+		require.NoError(t, sess.Start(ctx))
+
+		select {
+		case <-sess.Done():
+			t.Fatal("Done should not be closed before Close")
+		default:
+		}
+
+		require.NoError(t, sess.Close())
+
+		select {
+		case <-sess.Done():
+		case <-time.After(time.Second):
+			t.Fatal("Done should be closed after Close")
+		}
+	})
 }
