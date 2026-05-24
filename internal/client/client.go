@@ -236,7 +236,7 @@ func (c *Client) RunSOCKS5(ctx context.Context, listenAddr string) error {
 func (c *Client) handleSOCKS5Conn(ctx context.Context, conn net.Conn) {
 	target, err := socks5.Handshake(conn)
 	if err != nil {
-		c.logger.Error("socks5 handshake failed", "error", err)
+		c.logger.Debug("socks5 handshake failed", "error", err, "remote", conn.RemoteAddr().String())
 		conn.Close()
 		return
 	}
