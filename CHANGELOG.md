@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.9.0](https://github.com/vitalvas/mqtt-forward/compare/v0.8.1...v0.9.0) (2026-05-24)
+
+
+### Features
+
+* **tunnel:** per-session keepalive and unknown-session reject ([9089aba](https://github.com/vitalvas/mqtt-forward/commit/9089aba01232a2245b20420f8a9d61958002db99))
+
+
+### Bug Fixes
+
+* tighten shadow reporter timeouts; revert GOMAXPROCS=1 ([f9ab307](https://github.com/vitalvas/mqtt-forward/commit/f9ab307db0b71c916b433c95634b0559d8e85ff5))
+
 ## [0.8.1](https://github.com/vitalvas/mqtt-forward/compare/v0.8.0...v0.8.1) (2026-05-23)
 
 
