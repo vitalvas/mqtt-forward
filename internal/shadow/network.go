@@ -11,11 +11,15 @@ import (
 	"time"
 )
 
-const publicIPTimeout = 5 * time.Second
+const publicIPTimeout = 1 * time.Second
 
 var publicIPURLs = []string{
 	"https://checkip.amazonaws.com/",
 	"http://whatismyip.akamai.com/",
+}
+
+var publicIPHTTPClient = &http.Client{
+	Timeout: publicIPTimeout,
 }
 
 func publicIPs(ctx context.Context) []string {
@@ -53,7 +57,7 @@ func publicIPHTTP(ctx context.Context, url string) string {
 
 	req.Header.Set("User-Agent", "curl/8.7.1")
 
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := publicIPHTTPClient.Do(req)
 	if err != nil {
 		return ""
 	}

@@ -93,6 +93,10 @@ func TestReporter(t *testing.T) {
 			Logger:    testLogger(),
 		})
 
+		original := startupDelay
+		startupDelay = time.Millisecond
+		defer func() { startupDelay = original }()
+
 		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 		defer cancel()
 

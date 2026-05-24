@@ -9,7 +9,6 @@ Type=notify
 ExecStart=/usr/bin/mqtt-forward device
 EnvironmentFile=/etc/default/mqtt-forward
 Environment=GOMEMLIMIT=32MiB
-Environment=GOMAXPROCS=1
 Restart=always
 RestartSec=5
 WatchdogSec=30

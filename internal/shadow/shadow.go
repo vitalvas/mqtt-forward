@@ -14,6 +14,11 @@ const (
 	reportInterval = 30 * time.Minute
 )
 
+// startupDelay defers the first shadow report so it does not contend with
+// MQTT subscribe/publish work during device startup. It is a var so tests
+// can shorten it.
+var startupDelay = 30 * time.Second
+
 type ReporterConfig struct {
 	Transport tunnel.Transport
 	DeviceID  string
@@ -44,6 +49,12 @@ func NewReporter(cfg ReporterConfig) *Reporter {
 }
 
 func (r *Reporter) Run(ctx context.Context) {
+	select {
+	case <-ctx.Done():
+		return
+	case <-time.After(startupDelay):
+	}
+
 	r.report(ctx)
 
 	tick := time.NewTicker(reportInterval)
