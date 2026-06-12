@@ -984,6 +984,75 @@ func TestClientRunTCPError(t *testing.T) {
 	})
 }
 
+func TestClientRunTCPForwards(t *testing.T) {
+	t.Run("empty_forwards", func(t *testing.T) {
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+
+		err := c.RunTCPForwards(context.Background(), nil)
+		assert.Error(t, err)
+	})
+
+	t.Run("multiple_listeners", func(t *testing.T) {
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- c.RunTCPForwards(ctx, []TCPForward{
+				{Listen: "127.0.0.1:0", Target: "a:22"},
+				{Listen: "127.0.0.1:0", Target: "b:80"},
+			})
+		}()
+
+		time.Sleep(50 * time.Millisecond)
+
+		mt.mu.Lock()
+		subCount := len(mt.subscriptions)
+		mt.mu.Unlock()
+		assert.Equal(t, 2, subCount)
+
+		cancel()
+
+		select {
+		case err := <-errCh:
+			assert.NoError(t, err)
+		case <-time.After(time.Second):
+			t.Fatal("RunTCPForwards did not return after cancel")
+		}
+	})
+
+	t.Run("second_listen_error_releases_first", func(t *testing.T) {
+		mt := newMockTransport("client-1")
+		c := New(mt, "device-1", testLogger())
+
+		// Bind a real port so the first forward succeeds, then reuse it for
+		// the second forward to force a listen error on the second entry.
+		probe, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+		addr := probe.Addr().String()
+		require.NoError(t, probe.Close())
+
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+
+		runErr := c.RunTCPForwards(ctx, []TCPForward{
+			{Listen: addr, Target: "a:22"},
+			{Listen: addr, Target: "b:80"},
+		})
+		require.Error(t, runErr)
+		assert.Contains(t, runErr.Error(), "listen")
+
+		// The first listener must have been released, so the port is free.
+		l, err := net.Listen("tcp", addr)
+		require.NoError(t, err)
+		l.Close()
+	})
+}
+
 func TestClientHandleTCPConnEdgeCases(t *testing.T) {
 	t.Run("tcp_conn_open_timeout", func(t *testing.T) {
 		mt := newMockTransport("client-1")

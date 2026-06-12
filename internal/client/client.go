@@ -109,33 +109,82 @@ func (c *Client) subscribe() error {
 	return nil
 }
 
+// TCPForward describes a single local listen address forwarded to a target
+// host:port on the device.
+type TCPForward struct {
+	Listen string
+	Target string
+}
+
+// RunTCP forwards a single local listen address to a target on the device.
 func (c *Client) RunTCP(ctx context.Context, listenAddr, target string) error {
+	return c.RunTCPForwards(ctx, []TCPForward{{Listen: listenAddr, Target: target}})
+}
+
+// RunTCPForwards starts a listener for each forward and routes accepted
+// connections to their respective targets. All forwards share a single MQTT
+// subscription and stale-session cleanup loop. It returns when ctx is
+// cancelled or when any listener fails to start.
+func (c *Client) RunTCPForwards(ctx context.Context, forwards []TCPForward) error {
+	if len(forwards) == 0 {
+		return fmt.Errorf("no forwards specified")
+	}
+
 	if err := c.subscribe(); err != nil {
 		return err
 	}
 
-	listener, err := net.Listen("tcp", listenAddr)
-	if err != nil {
-		return fmt.Errorf("listen: %w", err)
-	}
-	defer listener.Close()
+	listeners := make([]net.Listener, 0, len(forwards))
 
-	c.logger.Debug("tcp forwarder listening", "addr", listener.Addr().String(), "target", target, "device", c.deviceID)
+	closeAll := func() {
+		for _, l := range listeners {
+			l.Close()
+		}
+	}
+
+	for _, fwd := range forwards {
+		listener, err := net.Listen("tcp", fwd.Listen)
+		if err != nil {
+			closeAll()
+			return fmt.Errorf("listen %s: %w", fwd.Listen, err)
+		}
+
+		listeners = append(listeners, listener)
+
+		c.logger.Debug("tcp forwarder listening", "addr", listener.Addr().String(), "target", fwd.Target, "device", c.deviceID)
+	}
 
 	go func() {
 		<-ctx.Done()
-		listener.Close()
+		closeAll()
 	}()
 
 	go c.manager.RunStaleCleanup(ctx, time.Duration(tunnel.StaleTimeout)*time.Second)
 
+	var wg sync.WaitGroup
+
+	for i, listener := range listeners {
+		wg.Add(1)
+
+		go func(listener net.Listener, target string) {
+			defer wg.Done()
+			c.acceptLoop(ctx, listener, target)
+		}(listener, forwards[i].Target)
+	}
+
+	wg.Wait()
+	c.manager.CloseAll()
+
+	return nil
+}
+
+func (c *Client) acceptLoop(ctx context.Context, listener net.Listener, target string) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			select {
 			case <-ctx.Done():
-				c.manager.CloseAll()
-				return nil
+				return
 			default:
 				c.logger.Error("accept error", "error", err)
 				continue

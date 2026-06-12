@@ -17,6 +17,7 @@ import (
 	"github.com/vitalvas/mqtt-forward/internal/client"
 	"github.com/vitalvas/mqtt-forward/internal/config"
 	"github.com/vitalvas/mqtt-forward/internal/device"
+	"github.com/vitalvas/mqtt-forward/internal/forward"
 	"github.com/vitalvas/mqtt-forward/internal/health"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 	"github.com/vitalvas/mqttv5"
@@ -156,9 +157,8 @@ func resolveClientID() {
 
 func newClientTCPCmd() *cobra.Command {
 	var (
-		listen   string
-		target   string
-		deviceID string
+		localForwards []string
+		deviceID      string
 	)
 
 	cmd := &cobra.Command{
@@ -169,6 +169,16 @@ func newClientTCPCmd() *cobra.Command {
 				Level:   cfg.LogLevel,
 				LogType: "json",
 			})
+
+			specs, err := forward.ParseAll(localForwards)
+			if err != nil {
+				return err
+			}
+
+			forwards := make([]client.TCPForward, len(specs))
+			for i, s := range specs {
+				forwards[i] = client.TCPForward{Listen: s.Listen, Target: s.Target}
+			}
 
 			resolveClientID()
 
@@ -191,7 +201,7 @@ func newClientTCPCmd() *cobra.Command {
 			group, _ := xcmd.ErrGroup(cmd.Context())
 
 			group.Go(func(ctx context.Context) error {
-				return c.RunTCP(ctx, listen, target)
+				return c.RunTCPForwards(ctx, forwards)
 			})
 
 			group.Go(func(ctx context.Context) error {
@@ -202,11 +212,11 @@ func newClientTCPCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&listen, "listen", ":8080", "Local listen address")
-	cmd.Flags().StringVar(&target, "target", "", "Target host:port on device")
+	cmd.Flags().StringArrayVarP(&localForwards, "local", "L", nil,
+		"Local forward [bind_address:]port:host:hostport (repeatable; defaults to loopback)")
 	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
 
-	cmd.MarkFlagRequired("target")
+	cmd.MarkFlagRequired("local")
 	cmd.MarkFlagRequired("device")
 
 	return cmd

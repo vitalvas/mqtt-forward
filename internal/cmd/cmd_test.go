@@ -166,12 +166,9 @@ func TestCommands(t *testing.T) {
 
 		assert.Equal(t, "tcp", cmd.Use)
 
-		f := cmd.Flags().Lookup("listen")
+		f := cmd.Flags().Lookup("local")
 		require.NotNil(t, f)
-		assert.Equal(t, ":8080", f.DefValue)
-
-		f = cmd.Flags().Lookup("target")
-		require.NotNil(t, f)
+		assert.Equal(t, "L", f.Shorthand)
 
 		f = cmd.Flags().Lookup("device")
 		require.NotNil(t, f)
@@ -312,7 +309,7 @@ func TestCommandsRunE(t *testing.T) {
 		setFailingConnector(t)
 
 		cmd := newClientTCPCmd()
-		cmd.SetArgs([]string{"--device", "dev1", "--target", "localhost:22"})
+		cmd.SetArgs([]string{"--device", "dev1", "-L", "8080:localhost:22"})
 
 		err := cmd.Execute()
 		assert.Error(t, err)
@@ -414,7 +411,7 @@ func TestCommandsRunE(t *testing.T) {
 
 		cmd := newClientTCPCmd()
 		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--target", "localhost:22", "--listen", ":0"})
+		cmd.SetArgs([]string{"--device", "dev1", "-L", "0:localhost:22"})
 
 		err := cmd.Execute()
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
