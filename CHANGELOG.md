@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/vitalvas/mqtt-forward/compare/v0.9.1...v0.10.0) (2026-06-12)
+
+
+### Features
+
+* **client:** support forwarding multiple TCP ports via repeatable -L flag ([8361a17](https://github.com/vitalvas/mqtt-forward/commit/8361a175540212d82caef682be00bc423c7b4070))
+
 ## [0.9.1](https://github.com/vitalvas/mqtt-forward/compare/v0.9.0...v0.9.1) (2026-05-24)
 
 
