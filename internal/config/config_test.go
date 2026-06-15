@@ -75,6 +75,53 @@ func TestLoad(t *testing.T) {
 
 		assert.Equal(t, uint32(16384), cfg.MaxPacketSize)
 	})
+
+	t.Run("missing_config_file_is_ignored", func(t *testing.T) {
+		t.Setenv("MQTT_CONFIG", filepath.Join(t.TempDir(), "does-not-exist.yaml"))
+
+		var cfg Config
+		require.NoError(t, Load(&cfg))
+
+		assert.Equal(t, "tcp://localhost:1883", cfg.Broker)
+	})
+
+	t.Run("loads_gateway_routes_from_file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		content := `broker: tcp://file-broker:1883
+gateway:
+  routes:
+    - listen: 127.0.0.1:8001
+      device: device-a
+      target: backend-a:80
+    - listen: 127.0.0.1:8002
+      device: device-b
+      target: backend-b:80
+`
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o600))
+		t.Setenv("MQTT_CONFIG", path)
+
+		var cfg Config
+		require.NoError(t, Load(&cfg))
+
+		assert.Equal(t, "tcp://file-broker:1883", cfg.Broker)
+		require.Len(t, cfg.Gateway.Routes, 2)
+		assert.Equal(t, "127.0.0.1:8001", cfg.Gateway.Routes[0].Listen)
+		assert.Equal(t, "device-a", cfg.Gateway.Routes[0].Device)
+		assert.Equal(t, "backend-a:80", cfg.Gateway.Routes[0].Target)
+		assert.Equal(t, "device-b", cfg.Gateway.Routes[1].Device)
+	})
+
+	t.Run("env_overrides_file", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "config.yaml")
+		require.NoError(t, os.WriteFile(path, []byte("broker: tcp://file-broker:1883\n"), 0o600))
+		t.Setenv("MQTT_CONFIG", path)
+		t.Setenv("MQTT_BROKER", "tcp://env-broker:1883")
+
+		var cfg Config
+		require.NoError(t, Load(&cfg))
+
+		assert.Equal(t, "tcp://env-broker:1883", cfg.Broker)
+	})
 }
 
 func TestConfig(t *testing.T) {

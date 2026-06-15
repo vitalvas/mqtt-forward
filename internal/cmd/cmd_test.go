@@ -468,6 +468,151 @@ func TestCommandsRunE(t *testing.T) {
 	})
 }
 
+func TestGatewayCmd(t *testing.T) {
+	t.Run("structure", func(t *testing.T) {
+		cmd := newGatewayCmd()
+
+		assert.Equal(t, "gateway", cmd.Use)
+
+		f := cmd.Flags().Lookup("route")
+		require.NotNil(t, f)
+	})
+
+	t.Run("registered_on_root", func(t *testing.T) {
+		cmd := NewRootCmd()
+
+		names := make([]string, 0, len(cmd.Commands()))
+		for _, sub := range cmd.Commands() {
+			names = append(names, sub.Use)
+		}
+
+		assert.Contains(t, names, "gateway")
+	})
+
+	t.Run("no_routes_error", func(t *testing.T) {
+		setMockConnector(t)
+
+		cmd := newGatewayCmd()
+		cmd.SetArgs([]string{})
+
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "no routes")
+	})
+
+	t.Run("invalid_route_flag", func(t *testing.T) {
+		setMockConnector(t)
+
+		cmd := newGatewayCmd()
+		cmd.SetArgs([]string{"--route", "device=a,listen=:8001"})
+
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "missing target")
+	})
+
+	t.Run("connect_error", func(t *testing.T) {
+		setFailingConnector(t)
+
+		cmd := newGatewayCmd()
+		cmd.SetArgs([]string{"--route", "device=a,listen=127.0.0.1:0,target=backend:80"})
+
+		err := cmd.Execute()
+		assert.ErrorContains(t, err, "connection refused")
+	})
+
+	t.Run("runs_with_mock_transport", func(t *testing.T) {
+		setMockConnector(t)
+
+		listener, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err)
+
+		addr := listener.Addr().String()
+		require.NoError(t, listener.Close())
+
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		defer cancel()
+
+		cmd := newGatewayCmd()
+		cmd.SetContext(ctx)
+		cmd.SetArgs([]string{"--route", fmt.Sprintf("device=a,listen=%s,target=backend:80", addr)})
+
+		err = cmd.Execute()
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
+	})
+}
+
+func TestParseRouteFlag(t *testing.T) {
+	t.Run("valid_all_keys", func(t *testing.T) {
+		r, err := parseRouteFlag("device=a,listen=:8001,target=backend:80")
+		require.NoError(t, err)
+		assert.Equal(t, "a", r.Device)
+		assert.Equal(t, ":8001", r.Listen)
+		assert.Equal(t, "backend:80", r.Target)
+	})
+
+	t.Run("key_order_independent", func(t *testing.T) {
+		r, err := parseRouteFlag("target=backend:80,device=a,listen=:8001")
+		require.NoError(t, err)
+		assert.Equal(t, "a", r.Device)
+	})
+
+	t.Run("missing_equals", func(t *testing.T) {
+		_, err := parseRouteFlag("device")
+		assert.ErrorContains(t, err, "key=value")
+	})
+
+	t.Run("unknown_key", func(t *testing.T) {
+		_, err := parseRouteFlag("foo=bar")
+		assert.ErrorContains(t, err, "unknown key")
+	})
+
+	t.Run("missing_device", func(t *testing.T) {
+		_, err := parseRouteFlag("listen=:8001,target=backend:80")
+		assert.ErrorContains(t, err, "missing device")
+	})
+
+	t.Run("missing_listen", func(t *testing.T) {
+		_, err := parseRouteFlag("device=a,target=backend:80")
+		assert.ErrorContains(t, err, "missing listen")
+	})
+}
+
+func TestMergeGatewayRoutes(t *testing.T) {
+	t.Run("config_only", func(t *testing.T) {
+		routes, err := mergeGatewayRoutes([]config.GatewayRoute{
+			{Listen: ":8001", Device: "a", Target: "ta:80"},
+		}, nil)
+		require.NoError(t, err)
+		require.Len(t, routes, 1)
+		assert.Equal(t, "a", routes[0].Device)
+	})
+
+	t.Run("flag_appends_new_listen", func(t *testing.T) {
+		routes, err := mergeGatewayRoutes(
+			[]config.GatewayRoute{{Listen: ":8001", Device: "a", Target: "ta:80"}},
+			[]string{"device=b,listen=:8002,target=tb:80"},
+		)
+		require.NoError(t, err)
+		require.Len(t, routes, 2)
+		assert.Equal(t, ":8002", routes[1].Listen)
+	})
+
+	t.Run("flag_overrides_matching_listen", func(t *testing.T) {
+		routes, err := mergeGatewayRoutes(
+			[]config.GatewayRoute{{Listen: ":8001", Device: "a", Target: "ta:80"}},
+			[]string{"device=override,listen=:8001,target=new:80"},
+		)
+		require.NoError(t, err)
+		require.Len(t, routes, 1)
+		assert.Equal(t, "override", routes[0].Device)
+		assert.Equal(t, "new:80", routes[0].Target)
+	})
+
+	t.Run("invalid_flag_propagates", func(t *testing.T) {
+		_, err := mergeGatewayRoutes(nil, []string{"device=a"})
+		assert.Error(t, err)
+	})
+}
+
 func TestNewEventHandler(t *testing.T) {
 	logger := slog.Default()
 

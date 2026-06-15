@@ -72,6 +72,41 @@ topic write tunnel/d1/out/data/+
 topic write $aws/things/d1/shadow/update
 ```
 
+### Gateway ACL Example
+
+A gateway is a single MQTT identity that tunnels to several devices. Its ACL is
+the union of the client rules for each device it routes to. For a gateway routing
+to `d1` and `d2`:
+
+```
+# Gateway: publish requests TO each routed device
+topic write tunnel/d1/in/control
+topic write tunnel/d1/in/data/+
+topic write tunnel/d2/in/control
+topic write tunnel/d2/in/data/+
+
+# Gateway: subscribe to responses FROM each routed device
+topic read tunnel/d1/out/control
+topic read tunnel/d1/out/data/+
+topic read tunnel/d2/out/control
+topic read tunnel/d2/out/data/+
+```
+
+Scope the rules to exactly the routed devices. A gateway is a concentration
+point: its single credential reaches every device in its route table, so a broad
+grant such as `tunnel/#` would let it reach every device on the broker. Do not
+grant wildcards beyond the listed device subtrees.
+
+A gateway needs no `tunnel/__shared__/ping` access for TCP forwarding; add the
+status rules (`topic write tunnel/__shared__/ping`, `topic read tunnel/+/out/control`)
+only if the same identity also runs device discovery.
+
+The gateway's MQTT client identity (`MQTT_CLIENT_ID`) must differ from every
+device's identity. Brokers permit only one connection per client ID, so a gateway
+reusing a device's ID disconnects that device. Per-route `device` values select
+topic subtrees and are not credentials; they grant nothing the broker ACL has not
+already allowed for the gateway's identity.
+
 ## Control Messages
 
 JSON-encoded messages on control topics:

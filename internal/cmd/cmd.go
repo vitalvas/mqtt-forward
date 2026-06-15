@@ -18,6 +18,7 @@ import (
 	"github.com/vitalvas/mqtt-forward/internal/config"
 	"github.com/vitalvas/mqtt-forward/internal/device"
 	"github.com/vitalvas/mqtt-forward/internal/forward"
+	"github.com/vitalvas/mqtt-forward/internal/gateway"
 	"github.com/vitalvas/mqtt-forward/internal/health"
 	"github.com/vitalvas/mqtt-forward/internal/tunnel"
 	"github.com/vitalvas/mqttv5"
@@ -61,6 +62,7 @@ func NewRootCmd() *cobra.Command {
 
 	rootCmd.AddCommand(newDeviceCmd())
 	rootCmd.AddCommand(newClientCmd())
+	rootCmd.AddCommand(newGatewayCmd())
 
 	return rootCmd
 }
@@ -153,6 +155,154 @@ func resolveClientID() {
 	if cfg.ClientID == "" {
 		cfg.ClientID = defaultClientID()
 	}
+}
+
+func newGatewayCmd() *cobra.Command {
+	var routeFlags []string
+
+	cmd := &cobra.Command{
+		Use:   "gateway",
+		Short: "Run in gateway mode (forward multiple listeners to multiple devices)",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			logger := xlogger.New(xlogger.Config{
+				Level:   cfg.LogLevel,
+				LogType: "json",
+			})
+
+			routes, err := mergeGatewayRoutes(cfg.Gateway.Routes, routeFlags)
+			if err != nil {
+				return err
+			}
+
+			resolveClientID()
+
+			var gw *gateway.Gateway
+
+			cfg.EventHandler = newEventHandler(logger, func() {
+				if gw != nil {
+					gw.CloseAllSessions()
+				}
+			})
+
+			transport, err := connectTransport(&cfg, logger)
+			if err != nil {
+				return err
+			}
+			defer transport.Close()
+
+			gw, err = gateway.New(transport, routes, logger)
+			if err != nil {
+				return err
+			}
+
+			group, _ := xcmd.ErrGroup(cmd.Context())
+
+			group.Go(func(ctx context.Context) error {
+				return gw.Run(ctx)
+			})
+
+			group.Go(func(ctx context.Context) error {
+				return xcmd.WaitInterrupted(ctx)
+			})
+
+			return group.Wait()
+		},
+	}
+
+	cmd.Flags().StringArrayVar(&routeFlags, "route", nil,
+		"Route device=ID,listen=ADDR,target=HOST:PORT (repeatable; overrides config routes by listen address)")
+
+	return cmd
+}
+
+// mergeGatewayRoutes combines config routes with --route flag routes. Flag
+// routes are appended; a flag route whose listen address matches a config route
+// replaces it. The result preserves config order, then appended flag routes.
+func mergeGatewayRoutes(configRoutes []config.GatewayRoute, routeFlags []string) ([]gateway.Route, error) {
+	flagRoutes, err := parseRouteFlags(routeFlags)
+	if err != nil {
+		return nil, err
+	}
+
+	override := make(map[string]gateway.Route, len(flagRoutes))
+	for _, r := range flagRoutes {
+		override[r.Listen] = r
+	}
+
+	merged := make([]gateway.Route, 0, len(configRoutes)+len(flagRoutes))
+	used := make(map[string]struct{}, len(flagRoutes))
+
+	for _, r := range configRoutes {
+		if ov, ok := override[r.Listen]; ok {
+			merged = append(merged, ov)
+			used[r.Listen] = struct{}{}
+
+			continue
+		}
+
+		merged = append(merged, gateway.Route{Listen: r.Listen, Device: r.Device, Target: r.Target})
+	}
+
+	for _, r := range flagRoutes {
+		if _, ok := used[r.Listen]; ok {
+			continue
+		}
+
+		merged = append(merged, r)
+	}
+
+	return merged, nil
+}
+
+// parseRouteFlags parses --route values of the form
+// "device=ID,listen=ADDR,target=HOST:PORT". The three keys may appear in any
+// order; all are required.
+func parseRouteFlags(routeFlags []string) ([]gateway.Route, error) {
+	routes := make([]gateway.Route, 0, len(routeFlags))
+
+	for _, raw := range routeFlags {
+		route, err := parseRouteFlag(raw)
+		if err != nil {
+			return nil, fmt.Errorf("invalid route %q: %w", raw, err)
+		}
+
+		routes = append(routes, route)
+	}
+
+	return routes, nil
+}
+
+func parseRouteFlag(raw string) (gateway.Route, error) {
+	var route gateway.Route
+
+	for _, field := range strings.Split(raw, ",") {
+		key, value, ok := strings.Cut(field, "=")
+		if !ok {
+			return gateway.Route{}, fmt.Errorf("expected key=value, got %q", field)
+		}
+
+		switch strings.TrimSpace(key) {
+		case "device":
+			route.Device = strings.TrimSpace(value)
+		case "listen":
+			route.Listen = strings.TrimSpace(value)
+		case "target":
+			route.Target = strings.TrimSpace(value)
+		default:
+			return gateway.Route{}, fmt.Errorf("unknown key %q", key)
+		}
+	}
+
+	switch {
+	case route.Device == "":
+		return gateway.Route{}, fmt.Errorf("missing device")
+	case route.Listen == "":
+		return gateway.Route{}, fmt.Errorf("missing listen")
+	case route.Target == "":
+		return gateway.Route{}, fmt.Errorf("missing target")
+	}
+
+	return route, nil
 }
 
 func newClientTCPCmd() *cobra.Command {

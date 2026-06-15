@@ -13,8 +13,24 @@ import (
 	"github.com/vitalvas/mqttv5"
 )
 
+// DefaultConfigFile is the YAML config file loaded when MQTT_CONFIG is unset.
+// A missing file is not an error; values fall back to defaults and environment.
+const DefaultConfigFile = "/etc/mqtt-forward/config.yaml"
+
+// Load populates cfg from, in increasing order of precedence: struct defaults,
+// the YAML config file, then environment variables. The config file path is
+// taken from MQTT_CONFIG, falling back to DefaultConfigFile. A missing file is
+// ignored so environment-only configuration keeps working.
 func Load(cfg *Config) error {
-	return xconfig.Load(cfg, xconfig.WithEnv(xconfig.EnvSkipPrefix))
+	configFile := os.Getenv("MQTT_CONFIG")
+	if configFile == "" {
+		configFile = DefaultConfigFile
+	}
+
+	return xconfig.Load(cfg,
+		xconfig.WithFiles(configFile),
+		xconfig.WithEnv(xconfig.EnvSkipPrefix),
+	)
 }
 
 type Config struct {
@@ -31,6 +47,10 @@ type Config struct {
 
 	HealthListen string `yaml:"health_listen" env:"MQTT_HEALTH_LISTEN"`
 
+	// Gateway holds the routing table for gateway mode, which forwards local
+	// listeners to targets on multiple devices over a single MQTT connection.
+	Gateway Gateway `yaml:"gateway"`
+
 	// MaxPacketSize caps the largest MQTT packet the client will accept.
 	// The default (128 KB) holds a full tunnel data frame (64 KB payload
 	// plus header) and MQTT v5 framing with comfortable headroom. The
@@ -38,6 +58,20 @@ type Config struct {
 	MaxPacketSize uint32 `yaml:"max_packet_size" env:"MQTT_MAX_PACKET_SIZE" default:"131072"`
 
 	EventHandler mqttv5.EventHandler `yaml:"-"`
+}
+
+// Gateway holds the gateway-mode routing table.
+type Gateway struct {
+	Routes []GatewayRoute `yaml:"routes"`
+}
+
+// GatewayRoute is a single gateway forward: a local listen address that is
+// tunnelled to a target host:port on a specific device. Multiple routes may
+// target the same device; they are grouped onto one client per device.
+type GatewayRoute struct {
+	Listen string `yaml:"listen"`
+	Device string `yaml:"device"`
+	Target string `yaml:"target"`
 }
 
 func (c *Config) MQTTOptions() ([]mqttv5.Option, error) {

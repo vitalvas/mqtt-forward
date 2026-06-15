@@ -1,9 +1,14 @@
 # Configuration
 
-All settings are configured via environment variables:
+Settings are loaded from, in increasing order of precedence: built-in defaults, a
+YAML config file, then environment variables. The config file path is taken from
+`MQTT_CONFIG`, falling back to `/etc/mqtt-forward/config.yaml`. A missing file is
+not an error, so environment-only configuration keeps working. Environment
+variables override values set in the file.
 
 | Variable | Description | Required | Default |
 |----------|-------------|----------|---------|
+| `MQTT_CONFIG` | Path to the YAML config file | no | `/etc/mqtt-forward/config.yaml` |
 | `MQTT_BROKER` | Broker URL | yes | `tcp://localhost:1883` |
 | `MQTT_CLIENT_ID` | MQTT client identifier (defaults to hostname) | no | (hostname) |
 | `MQTT_DEVICE_ID` | Device identifier | no | `tunnel-device-{hostname}` |
@@ -18,6 +23,56 @@ All settings are configured via environment variables:
 | `MQTT_HEALTH_LISTEN` | Address for HTTP health check endpoint (device mode, e.g. `:8081`). Empty disables. | no | (empty) |
 
 \* Device mode only: TLS defaults are applied only if the file exists on disk and the variable is not set.
+
+## Config File
+
+Every environment variable above has a matching YAML key (the lowercase name
+without the `MQTT_` prefix). Structured settings such as gateway routes can only
+be set in the file:
+
+```yaml
+broker: tcp://broker.example.com:1883
+log_level: info
+
+gateway:
+  routes:
+    - listen: 127.0.0.1:8001
+      device: device-a
+      target: 127.0.0.1:80
+    - listen: 127.0.0.1:8002
+      device: device-b
+      target: 127.0.0.1:80
+```
+
+## Gateway Routes
+
+Gateway mode forwards multiple local listeners to targets on multiple devices over
+a single MQTT connection. Each route has three fields:
+
+| Field | Description |
+|-------|-------------|
+| `listen` | Local listen address (`[bind_address:]port`). Bind to all interfaces with `0.0.0.0:` (IPv4) or `[::]:` (IPv6); omit the bind address to listen on loopback only. |
+| `device` | Target device ID the route forwards to. |
+| `target` | Remote `host:port` the device dials. Wrap IPv6 literals in square brackets. |
+
+Routes may also be supplied or overridden on the command line with repeatable
+`--route device=ID,listen=ADDR,target=HOST:PORT` flags. A flag route whose
+`listen` matches a config route replaces it; otherwise it is added. Listen
+addresses must be unique across all routes.
+
+### Permissions
+
+There is no application-level authorization; access control is delegated entirely
+to MQTT broker topic ACLs. A gateway is one MQTT identity that tunnels to several
+devices, so its ACL must cover the union of those devices' topic subtrees. Because
+a single gateway credential reaches every device in its route table, scope the ACL
+to exactly the routed devices and avoid wildcards. See the gateway ACL example in
+[protocol.md](protocol.md#gateway-acl-example).
+
+Set `MQTT_CLIENT_ID` to a value distinct from every device ID. The broker permits
+only one connection per client ID, so a gateway that reuses a device's ID
+disconnects that device. The default client ID is the hostname, which may collide;
+set it explicitly for gateways (for example `gateway-edge-1`).
 
 ## Health Check Endpoint
 
