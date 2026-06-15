@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.11.0](https://github.com/vitalvas/mqtt-forward/compare/v0.10.0...v0.11.0) (2026-06-15)
+
+
+### Features
+
+* **gateway:** tunnel multiple listeners to multiple devices ([be62216](https://github.com/vitalvas/mqtt-forward/commit/be62216d01f51ec3a730d5513a63481d8fc3f592))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/vitalvas/gokit to v0.35.0 ([c26d11d](https://github.com/vitalvas/mqtt-forward/commit/c26d11dec9b18c75f737dde24cc01249acc3fea9))
+* **deps:** update module github.com/vitalvas/mqttv5 to v0.8.0 ([d45404f](https://github.com/vitalvas/mqtt-forward/commit/d45404f069b892ccaaa132307578da8d34b14346))
+* **deps:** update module golang.org/x/term to v0.44.0 ([1121ca5](https://github.com/vitalvas/mqtt-forward/commit/1121ca52674e5a4ff4fd765b906b1443600dc150))
+
 ## [0.10.0](https://github.com/vitalvas/mqtt-forward/compare/v0.9.1...v0.10.0) (2026-06-12)
 
 
