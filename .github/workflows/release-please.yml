@@ -38,14 +38,14 @@ jobs:
           go-version-file: go.mod
       - name: Test GoReleaser
         if: ${{ needs.release-please.outputs.release_created != 'true' }}
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         with:
           args: release --clean --snapshot
           distribution: goreleaser
           version: ~> v2
       - name: Run GoReleaser
         if: ${{ needs.release-please.outputs.release_created }}
-        uses: goreleaser/goreleaser-action@v6
+        uses: goreleaser/goreleaser-action@v7
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
