@@ -31,6 +31,8 @@ github.com/vitalvas/kasper v0.12.0 h1:VsyGsxfaiQ7r9sQFE3TROONrjj7N/VhftnXKRxZgfF
 github.com/vitalvas/kasper v0.12.0/go.mod h1:M6JZ3k42LdwNNs4+U3PZsLuUET81bjBEIzwtx9F36A8=
 github.com/vitalvas/mqttv5 v0.7.0 h1:RuCYdfOg/1o95C0FxetP6h+MsG/bQQGv/EeHmFVzJKU=
 github.com/vitalvas/mqttv5 v0.7.0/go.mod h1:O7QX6BrGYuYTAQ2wm+qa0beU6oclWjai9dCUB8Z4cB4=
+github.com/vitalvas/mqttv5 v0.8.0 h1:9rhNbXPViQI3s2iUq/yLJKsswdNM4PmYtAuCOItdYC8=
+github.com/vitalvas/mqttv5 v0.8.0/go.mod h1:O7QX6BrGYuYTAQ2wm+qa0beU6oclWjai9dCUB8Z4cB4=
 go.uber.org/mock v0.5.2 h1:LbtPTcP8A5k9WPXj54PPPbjcI4Y6lhyOZXn+VS7wNko=
 go.uber.org/mock v0.5.2/go.mod h1:wLlUxC2vVTPTaE3UD51E0BGOAElKrILxhVSDYQLld5o=
 go.yaml.in/yaml/v3 v3.0.4/go.mod h1:DhzuOOF2ATzADvBadXxruRBLzYTpT36CKvDb3+aBEFg=
