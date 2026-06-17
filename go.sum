@@ -25,6 +25,8 @@ github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 github.com/vitalvas/gokit v0.35.0 h1:M7BKkKpoP6rYPm+IAYO549cx5ZeM7DEvq0gNimxqwFQ=
 github.com/vitalvas/gokit v0.35.0/go.mod h1:eiFw2yqgbrDMymUMwP4spDXBooeMwxh87dX49LrGFbs=
+github.com/vitalvas/gokit v0.36.0 h1:pWY+C6PhvrMBHQGzVebXAPZLnNRinXhqqhl5+G2FCho=
+github.com/vitalvas/gokit v0.36.0/go.mod h1:2HOotTf7cUFzkd4FY2MP4VF8hN5IAI4ngN3h/6pLO5o=
 github.com/vitalvas/kasper v0.12.0 h1:VsyGsxfaiQ7r9sQFE3TROONrjj7N/VhftnXKRxZgfF8=
 github.com/vitalvas/kasper v0.12.0/go.mod h1:M6JZ3k42LdwNNs4+U3PZsLuUET81bjBEIzwtx9F36A8=
 github.com/vitalvas/mqttv5 v0.8.0 h1:9rhNbXPViQI3s2iUq/yLJKsswdNM4PmYtAuCOItdYC8=
