@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/vitalvas/mqtt-forward/compare/v0.11.0...v0.11.1) (2026-06-18)
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/vitalvas/gokit to v0.36.0 ([3f818a0](https://github.com/vitalvas/mqtt-forward/commit/3f818a0985d947190fce4f7d5ed55fc39a4a4ecb))
+
 ## [0.11.0](https://github.com/vitalvas/mqtt-forward/compare/v0.10.0...v0.11.0) (2026-06-15)
 
 
