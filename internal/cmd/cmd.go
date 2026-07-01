@@ -130,7 +130,7 @@ func newDeviceCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&cfg.DeviceID, "device-id", "", "Device identifier (or MQTT_DEVICE_ID)")
-	cmd.Flags().StringVar(&cfg.HealthListen, "health-listen", "", "Address for HTTP health check endpoint (or MQTT_HEALTH_LISTEN, e.g. :8081)")
+	cmd.Flags().StringVar(&cfg.HealthListen, "health-listen", "", "HTTP health endpoint: host:port or unix socket path (or MQTT_HEALTH_LISTEN)")
 
 	return cmd
 }
@@ -201,6 +201,14 @@ func newGatewayCmd() *cobra.Command {
 				return gw.Run(ctx)
 			})
 
+			if cfg.HealthListen != "" {
+				healthServer := health.New(cfg.HealthListen, transport.IsConnected, logger)
+
+				group.Go(func(ctx context.Context) error {
+					return healthServer.Run(ctx)
+				})
+			}
+
 			group.Go(func(ctx context.Context) error {
 				return xcmd.WaitInterrupted(ctx)
 			})
@@ -211,6 +219,7 @@ func newGatewayCmd() *cobra.Command {
 
 	cmd.Flags().StringArrayVar(&routeFlags, "route", nil,
 		"Route device=ID,listen=ADDR,target=HOST:PORT (repeatable; overrides config routes by listen address)")
+	cmd.Flags().StringVar(&cfg.HealthListen, "health-listen", "", "HTTP health endpoint: host:port or unix socket path (or MQTT_HEALTH_LISTEN)")
 
 	return cmd
 }

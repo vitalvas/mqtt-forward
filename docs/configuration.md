@@ -20,7 +20,7 @@ variables override values set in the file.
 | `MQTT_TLS_CA` | Path to TLS CA certificate | no | `/etc/mqtt-forward/AmazonRootCA1.pem` * |
 | `MQTT_LOG_LEVEL` | Log level (`debug`, `info`, `warn`, `error`) | no | `info` |
 | `MQTT_MAX_PACKET_SIZE` | Maximum MQTT packet size in bytes accepted by the client. Must be large enough to hold a full tunnel data frame (~64 KB) plus MQTT v5 framing. | no | `131072` (128 KB) |
-| `MQTT_HEALTH_LISTEN` | Address for HTTP health check endpoint (device mode, e.g. `:8081`). Empty disables. | no | (empty) |
+| `MQTT_HEALTH_LISTEN` | Address for the HTTP health check endpoint (device and gateway modes). A TCP address (`host:port`, e.g. `:8081`) or a unix domain socket path (leading `/` or `unix:` prefix, e.g. `/var/run/mqtt-forward.socket`). Empty disables. | no | (empty) |
 
 \* Device mode only: TLS defaults are applied only if the file exists on disk and the variable is not set.
 
@@ -76,7 +76,7 @@ set it explicitly for gateways (for example `gateway-edge-1`).
 
 ## Health Check Endpoint
 
-Device mode can expose an HTTP health check endpoint for external monitoring (load balancers, orchestrators, uptime probes). Enable it with `MQTT_HEALTH_LISTEN` or `--health-listen`:
+Device and gateway modes can expose an HTTP health check endpoint for external monitoring (load balancers, orchestrators, uptime probes, process supervisors). Enable it with `MQTT_HEALTH_LISTEN` or `--health-listen`:
 
 ```sh
 mqtt-forward device --health-listen :8081
@@ -88,6 +88,24 @@ mqtt-forward device --health-listen :8081
 | `/debug/pprof/` | `GET` | Standard Go runtime profiling index (`heap`, `goroutine`, `allocs`, `block`, `mutex`, `profile`, `trace`, `cmdline`, `symbol`). See [net/http/pprof](https://pkg.go.dev/net/http/pprof). Restricted to loopback clients; non-loopback callers receive `403 Forbidden`. |
 
 The endpoint is disabled by default. When enabled, the pprof handlers are mounted on the same listener as `/health` but are only reachable from `127.0.0.0/8` and `::1`, even if the listener is bound to a non-loopback interface. `/health` itself remains open to all callers so external monitors and load balancers continue to work.
+
+### Unix Socket
+
+To avoid opening a TCP port, bind the endpoint to a unix domain socket instead. The value is treated as a socket path when it starts with `/` or a `unix:` prefix:
+
+```sh
+mqtt-forward device --health-listen /var/run/mqtt-forward.socket
+```
+
+The parent directory must already exist; mqtt-forward does not create it. A stale socket file left by an unclean shutdown is removed before binding, and the socket is unlinked on graceful shutdown. Query it with an HTTP client that dials the socket:
+
+```sh
+curl --unix-socket /var/run/mqtt-forward.socket http://localhost/health
+```
+
+Because a unix socket has no IP peer, the loopback-only pprof handlers are not reachable over the socket; only `/health` is served. Use a TCP `--health-listen` if you need pprof.
+
+This makes the endpoint checkable by a local process supervisor without exposing a network port. For example, a supervisor that speaks HTTP over a unix socket can probe `GET /health` and treat a non-`200` response as unhealthy.
 
 When connecting to AWS IoT Core (`*.iot.*.amazonaws.com`) on port 443, the ALPN protocol is set automatically based on the URL scheme:
 

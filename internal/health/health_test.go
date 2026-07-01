@@ -8,6 +8,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -211,6 +213,153 @@ func TestRun(t *testing.T) {
 		err := s.Run(context.Background())
 		assert.Error(t, err)
 	})
+
+	t.Run("serves_over_unix_socket_healthy", func(t *testing.T) {
+		sock := shortSocketPath(t)
+
+		var healthy atomic.Bool
+		healthy.Store(true)
+
+		s := New(sock, healthy.Load, logger)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.Run(ctx)
+		}()
+
+		client := unixClient(sock)
+
+		resp := waitForUnixHealth(t, client)
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		resp.Body.Close()
+		assert.Equal(t, "ok\n", string(body))
+
+		healthy.Store(false)
+
+		resp2, err := client.Get("http://unix/health")
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusServiceUnavailable, resp2.StatusCode)
+		resp2.Body.Close()
+
+		cancel()
+
+		select {
+		case err := <-errCh:
+			assert.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("server did not shut down")
+		}
+	})
+
+	t.Run("removes_stale_socket_file", func(t *testing.T) {
+		sock := shortSocketPath(t)
+		require.NoError(t, os.WriteFile(sock, []byte("stale"), 0o600))
+
+		s := New(sock, func() bool { return true }, logger)
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- s.Run(ctx)
+		}()
+
+		resp := waitForUnixHealth(t, unixClient(sock))
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		resp.Body.Close()
+
+		cancel()
+
+		select {
+		case err := <-errCh:
+			assert.NoError(t, err)
+		case <-time.After(5 * time.Second):
+			t.Fatal("server did not shut down")
+		}
+	})
+
+	t.Run("returns_error_when_unix_socket_dir_missing", func(t *testing.T) {
+		sock := filepath.Join(shortSocketPath(t), "nested", "health.socket")
+
+		s := New(sock, func() bool { return true }, logger)
+
+		err := s.Run(context.Background())
+		assert.Error(t, err)
+	})
+}
+
+// shortSocketPath returns a unix socket path under a short temporary directory.
+// macOS limits unix socket paths to ~104 bytes, and t.TempDir() names embed the
+// full (long) test name, so a dedicated short base directory is used instead.
+func shortSocketPath(t *testing.T) string {
+	t.Helper()
+
+	dir, err := os.MkdirTemp("", "mfh")
+	require.NoError(t, err)
+
+	t.Cleanup(func() { _ = os.RemoveAll(dir) })
+
+	return filepath.Join(dir, "health.socket")
+}
+
+func TestUnixAddr(t *testing.T) {
+	cases := []struct {
+		name    string
+		addr    string
+		wantOK  bool
+		network string
+		path    string
+	}{
+		{"tcp_host_port", ":8081", false, "", ""},
+		{"tcp_full", "127.0.0.1:8081", false, "", ""},
+		{"absolute_path", "/var/run/mqtt-forward.socket", true, "unix", "/var/run/mqtt-forward.socket"},
+		{"unix_prefix", "unix:/var/run/mqtt-forward.socket", true, "unix", "/var/run/mqtt-forward.socket"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			network, path, ok := unixAddr(tc.addr)
+			assert.Equal(t, tc.wantOK, ok)
+			assert.Equal(t, tc.network, network)
+			assert.Equal(t, tc.path, path)
+		})
+	}
+}
+
+func unixClient(sock string) *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
+				var d net.Dialer
+
+				return d.DialContext(ctx, "unix", sock)
+			},
+		},
+	}
+}
+
+func waitForUnixHealth(t *testing.T, client *http.Client) *http.Response {
+	t.Helper()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := client.Get("http://unix/health")
+		if err == nil {
+			return resp
+		}
+
+		time.Sleep(20 * time.Millisecond)
+	}
+
+	t.Fatal("unix health endpoint never became reachable")
+	return nil
 }
 
 func waitForHealth(t *testing.T, addr string) *http.Response {

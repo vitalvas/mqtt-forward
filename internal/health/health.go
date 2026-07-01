@@ -7,6 +7,8 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"os"
+	"strings"
 	"time"
 )
 
@@ -90,8 +92,39 @@ func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	_, _ = w.Write([]byte("ok\n"))
 }
 
+// listen creates the health server listener. The address is treated as a unix
+// domain socket when it is prefixed with "unix:" or is a filesystem path (starts
+// with "/"); otherwise it is a TCP address. For unix sockets the parent directory
+// must already exist -- no directory is created here. A stale socket file left by
+// an unclean shutdown is removed before binding.
+func listen(addr string) (net.Listener, error) {
+	if network, path, ok := unixAddr(addr); ok {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return nil, err
+		}
+
+		return net.Listen(network, path)
+	}
+
+	return net.Listen("tcp", addr)
+}
+
+// unixAddr reports whether addr denotes a unix domain socket and returns the
+// network ("unix") and socket path to bind.
+func unixAddr(addr string) (string, string, bool) {
+	if path, ok := strings.CutPrefix(addr, "unix:"); ok {
+		return "unix", path, true
+	}
+
+	if strings.HasPrefix(addr, "/") {
+		return "unix", addr, true
+	}
+
+	return "", "", false
+}
+
 func (s *Server) Run(ctx context.Context) error {
-	listener, err := net.Listen("tcp", s.listen)
+	listener, err := listen(s.listen)
 	if err != nil {
 		return err
 	}

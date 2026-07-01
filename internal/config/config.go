@@ -45,6 +45,8 @@ type Config struct {
 	TLSCA     string `yaml:"tls_ca" env:"MQTT_TLS_CA"`
 	LogLevel  string `yaml:"log_level" env:"MQTT_LOG_LEVEL" default:"info"`
 
+	// HealthListen is the HTTP /health endpoint address: a host:port for TCP or a
+	// unix socket path (leading "/" or "unix:" prefix). Empty disables it.
 	HealthListen string `yaml:"health_listen" env:"MQTT_HEALTH_LISTEN"`
 
 	// Gateway holds the routing table for gateway mode, which forwards local
