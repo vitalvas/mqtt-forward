@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.12.0](https://github.com/vitalvas/mqtt-forward/compare/v0.11.1...v0.12.0) (2026-07-01)
+
+
+### Features
+
+* add upx in release ([8e59d03](https://github.com/vitalvas/mqtt-forward/commit/8e59d033a1f868362d4affcb03b0841950c80af1))
+* **health:** serve /health over a unix domain socket ([6597f9a](https://github.com/vitalvas/mqtt-forward/commit/6597f9adce35b725350e9a8e35b0bd109fe8af48))
+
+
+### Bug Fixes
+
+* **deps:** update module github.com/vitalvas/gokit to v0.36.2 ([6096349](https://github.com/vitalvas/mqtt-forward/commit/6096349014ec293640b9e617a1619f4ab6836205))
+* **deps:** update module github.com/vitalvas/mqttv5 to v0.8.1 ([5f9718c](https://github.com/vitalvas/mqtt-forward/commit/5f9718cd2f7c45b38a7bfb14ff6dbbd00af229ae))
+
 ## [0.11.1](https://github.com/vitalvas/mqtt-forward/compare/v0.11.0...v0.11.1) (2026-06-18)
 
 
