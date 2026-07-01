@@ -20,6 +20,9 @@ builds:
       - -X main.version={{.Version}}
       - -X main.commit={{.Commit}}
       - -X main.date={{.Date}}
+upx:
+  - enabled: true
+
 checksum:
   name_template: checksums.txt
   algorithm: sha256
