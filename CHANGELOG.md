@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.0](https://github.com/vitalvas/mqtt-forward/compare/v0.12.0...v0.13.0) (2026-09-29)
+
+
+### Features
+
+* sync device shadow drift against broker on connect ([47e28fa](https://github.com/vitalvas/mqtt-forward/commit/47e28fa8bc962b34a7892707757ac4838c902f6a))
+
 ## [0.12.0](https://github.com/vitalvas/mqtt-forward/compare/v0.11.1...v0.12.0) (2026-07-01)
 
 
