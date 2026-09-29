@@ -617,47 +617,64 @@ func TestNewEventHandler(t *testing.T) {
 	logger := slog.Default()
 
 	t.Run("connection_lost_calls_callback", func(t *testing.T) {
-		var called atomic.Bool
+		var lost, connected atomic.Bool
 
-		handler := newEventHandler(logger, func() {
-			called.Store(true)
+		handler := newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() { lost.Store(true) },
+			onConnected:      func() { connected.Store(true) },
 		})
 
 		handler(nil, mqttv5.ErrConnectionLost)
-		assert.True(t, called.Load())
+		assert.True(t, lost.Load())
+		assert.False(t, connected.Load())
 	})
 
-	t.Run("connected_does_not_call_callback", func(t *testing.T) {
-		var called atomic.Bool
+	t.Run("connected_calls_callback", func(t *testing.T) {
+		var lost, connected atomic.Bool
 
-		handler := newEventHandler(logger, func() {
-			called.Store(true)
+		handler := newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() { lost.Store(true) },
+			onConnected:      func() { connected.Store(true) },
 		})
 
 		handler(nil, mqttv5.ErrConnected)
-		assert.False(t, called.Load())
+		assert.True(t, connected.Load())
+		assert.False(t, lost.Load())
 	})
 
-	t.Run("reconnecting_does_not_call_callback", func(t *testing.T) {
-		var called atomic.Bool
+	t.Run("reconnecting_calls_no_callback", func(t *testing.T) {
+		var lost, connected atomic.Bool
 
-		handler := newEventHandler(logger, func() {
-			called.Store(true)
+		handler := newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() { lost.Store(true) },
+			onConnected:      func() { connected.Store(true) },
 		})
 
 		handler(nil, mqttv5.ErrReconnecting)
-		assert.False(t, called.Load())
+		assert.False(t, lost.Load())
+		assert.False(t, connected.Load())
 	})
 
-	t.Run("reconnect_failed_does_not_call_callback", func(t *testing.T) {
-		var called atomic.Bool
+	t.Run("reconnect_failed_calls_no_callback", func(t *testing.T) {
+		var lost, connected atomic.Bool
 
-		handler := newEventHandler(logger, func() {
-			called.Store(true)
+		handler := newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() { lost.Store(true) },
+			onConnected:      func() { connected.Store(true) },
 		})
 
 		handler(nil, mqttv5.ErrReconnectFailed)
-		assert.False(t, called.Load())
+		assert.False(t, lost.Load())
+		assert.False(t, connected.Load())
+	})
+
+	t.Run("nil_callbacks_do_not_panic", func(t *testing.T) {
+		handler := newEventHandler(logger, eventCallbacks{})
+
+		assert.NotPanics(t, func() {
+			handler(nil, mqttv5.ErrConnectionLost)
+			handler(nil, mqttv5.ErrConnected)
+		})
 	})
 }
 

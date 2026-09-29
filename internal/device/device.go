@@ -25,6 +25,7 @@ type Device struct {
 	healthCheck func() bool
 	version     string
 	awsIoT      bool
+	reporter    *shadow.Reporter
 
 	rejectMu       sync.Mutex
 	lastRejectedAt map[string]time.Time
@@ -54,6 +55,23 @@ func (d *Device) SetVersion(v string) {
 
 func (d *Device) SetAWSIoT(v bool) {
 	d.awsIoT = v
+
+	if v {
+		d.reporter = shadow.NewReporter(shadow.ReporterConfig{
+			Transport: d.transport,
+			DeviceID:  d.deviceID,
+			Version:   d.version,
+			Logger:    d.logger,
+		})
+	}
+}
+
+// ReportNow triggers an immediate device-shadow report. Called from the MQTT
+// event handler on every (re)connect. No-op when shadow reporting is disabled.
+func (d *Device) ReportNow() {
+	if d.reporter != nil {
+		d.reporter.ReportNow()
+	}
 }
 
 func (d *Device) CloseAllSessions() {
@@ -79,6 +97,12 @@ func (d *Device) Run(ctx context.Context) error {
 		return fmt.Errorf("subscribe shared ping: %w", err)
 	}
 
+	if d.reporter != nil {
+		if err := d.reporter.Subscribe(); err != nil {
+			return fmt.Errorf("subscribe shadow: %w", err)
+		}
+	}
+
 	if err := d.transport.SubscribeAll(); err != nil {
 		return fmt.Errorf("subscribe all: %w", err)
 	}
@@ -93,15 +117,8 @@ func (d *Device) Run(ctx context.Context) error {
 
 	go system.RunWatchdog(ctx, d.healthCheck)
 
-	if d.awsIoT {
-		reporter := shadow.NewReporter(shadow.ReporterConfig{
-			Transport: d.transport,
-			DeviceID:  d.deviceID,
-			Version:   d.version,
-			Logger:    d.logger,
-		})
-
-		go reporter.Run(ctx)
+	if d.reporter != nil {
+		go d.reporter.Run(ctx)
 	}
 
 	<-ctx.Done()

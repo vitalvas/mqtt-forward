@@ -87,10 +87,17 @@ func newDeviceCmd() *cobra.Command {
 
 			var dev *device.Device
 
-			cfg.EventHandler = newEventHandler(logger, func() {
-				if dev != nil {
-					dev.CloseAllSessions()
-				}
+			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+				onConnectionLost: func() {
+					if dev != nil {
+						dev.CloseAllSessions()
+					}
+				},
+				onConnected: func() {
+					if dev != nil {
+						dev.ReportNow()
+					}
+				},
 			})
 
 			transport, err := connectTransport(&cfg, logger)
@@ -178,10 +185,12 @@ func newGatewayCmd() *cobra.Command {
 
 			var gw *gateway.Gateway
 
-			cfg.EventHandler = newEventHandler(logger, func() {
-				if gw != nil {
-					gw.CloseAllSessions()
-				}
+			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+				onConnectionLost: func() {
+					if gw != nil {
+						gw.CloseAllSessions()
+					}
+				},
 			})
 
 			transport, err := connectTransport(&cfg, logger)
@@ -343,10 +352,12 @@ func newClientTCPCmd() *cobra.Command {
 
 			var c *client.Client
 
-			cfg.EventHandler = newEventHandler(logger, func() {
-				if c != nil {
-					c.CloseAllSessions()
-				}
+			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+				onConnectionLost: func() {
+					if c != nil {
+						c.CloseAllSessions()
+					}
+				},
 			})
 
 			transport, err := connectTransport(&cfg, logger)
@@ -400,10 +411,12 @@ func newClientSOCKS5Cmd() *cobra.Command {
 
 			var c *client.Client
 
-			cfg.EventHandler = newEventHandler(logger, func() {
-				if c != nil {
-					c.CloseAllSessions()
-				}
+			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+				onConnectionLost: func() {
+					if c != nil {
+						c.CloseAllSessions()
+					}
+				},
 			})
 
 			transport, err := connectTransport(&cfg, logger)
@@ -452,10 +465,12 @@ func newClientShellCmd() *cobra.Command {
 
 			var c *client.Client
 
-			cfg.EventHandler = newEventHandler(logger, func() {
-				if c != nil {
-					c.CloseAllSessions()
-				}
+			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+				onConnectionLost: func() {
+					if c != nil {
+						c.CloseAllSessions()
+					}
+				},
 			})
 
 			transport, err := connectTransport(&cfg, logger)
@@ -499,10 +514,12 @@ func newClientExecCmd() *cobra.Command {
 
 			var c *client.Client
 
-			cfg.EventHandler = newEventHandler(logger, func() {
-				if c != nil {
-					c.CloseAllSessions()
-				}
+			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+				onConnectionLost: func() {
+					if c != nil {
+						c.CloseAllSessions()
+					}
+				},
 			})
 
 			transport, err := connectTransport(&cfg, logger)
@@ -574,10 +591,12 @@ func newClientPingCmd() *cobra.Command {
 
 			var c *client.Client
 
-			cfg.EventHandler = newEventHandler(logger, func() {
-				if c != nil {
-					c.CloseAllSessions()
-				}
+			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+				onConnectionLost: func() {
+					if c != nil {
+						c.CloseAllSessions()
+					}
+				},
 			})
 
 			transport, err := connectTransport(&cfg, logger)
@@ -613,7 +632,7 @@ func newClientStatusCmd() *cobra.Command {
 
 			resolveClientID()
 
-			cfg.EventHandler = newEventHandler(logger, func() {})
+			cfg.EventHandler = newEventHandler(logger, eventCallbacks{})
 
 			transport, err := connectTransport(&cfg, logger)
 			if err != nil {
@@ -628,16 +647,26 @@ func newClientStatusCmd() *cobra.Command {
 	return cmd
 }
 
-func newEventHandler(logger *slog.Logger, onConnectionLost func()) mqttv5.EventHandler {
+type eventCallbacks struct {
+	onConnectionLost func()
+	onConnected      func()
+}
+
+func newEventHandler(logger *slog.Logger, cb eventCallbacks) mqttv5.EventHandler {
 	return func(_ *mqttv5.Client, ev error) {
 		switch {
 		case errors.Is(ev, mqttv5.ErrConnectionLost):
 			logger.Debug("mqtt connection lost")
-			onConnectionLost()
+			if cb.onConnectionLost != nil {
+				cb.onConnectionLost()
+			}
 		case errors.Is(ev, mqttv5.ErrReconnecting):
 			logger.Debug("mqtt reconnecting")
 		case errors.Is(ev, mqttv5.ErrConnected):
 			logger.Debug("mqtt connected")
+			if cb.onConnected != nil {
+				cb.onConnected()
+			}
 		case errors.Is(ev, mqttv5.ErrReconnectFailed):
 			logger.Error("mqtt reconnect failed")
 		}

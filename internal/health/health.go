@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	shutdownTimeout = 5 * time.Second
+	shutdownTimeout = 2 * time.Second
 	readTimeout     = 5 * time.Second
 	// writeTimeout must accommodate pprof CPU profile and trace endpoints,
 	// which stream for up to ?seconds=N (default 30s) before responding.
@@ -154,8 +154,11 @@ func (s *Server) Run(ctx context.Context) error {
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 		defer cancel()
 
+		// Graceful drain, then force-close: a lingering idle keep-alive
+		// connection can otherwise keep Shutdown blocked until its deadline.
 		if err := s.server.Shutdown(shutdownCtx); err != nil {
 			s.logger.Debug("health server shutdown", "error", err)
+			_ = s.server.Close()
 		}
 
 		<-errCh

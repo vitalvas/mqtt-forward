@@ -69,7 +69,10 @@ topic write tunnel/d1/out/control
 topic write tunnel/d1/out/data/+
 
 # Device d1: AWS IoT Device Shadow (when using AWS IoT Core)
-topic write $aws/things/d1/shadow/update
+topic write     $aws/things/d1/shadow/update
+topic write     $aws/things/d1/shadow/get
+topic subscribe $aws/things/d1/shadow/get/accepted
+topic read      $aws/things/d1/shadow/get/accepted
 ```
 
 ### Gateway ACL Example

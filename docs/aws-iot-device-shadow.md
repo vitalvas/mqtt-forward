@@ -36,5 +36,8 @@ $aws/things/{device_id}/shadow/update
 ## Broker ACL
 
 ```
-topic write $aws/things/{device_id}/shadow/update
+topic write     $aws/things/{device_id}/shadow/update
+topic write     $aws/things/{device_id}/shadow/get
+topic subscribe $aws/things/{device_id}/shadow/get/accepted
+topic read      $aws/things/{device_id}/shadow/get/accepted
 ```
