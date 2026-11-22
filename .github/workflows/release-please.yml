@@ -8,6 +8,7 @@ permissions:
   contents: write
   issues: write
   pull-requests: write
+  id-token: write
 jobs:
   release-please:
     name: Creating release
@@ -53,3 +54,26 @@ jobs:
           args: release --clean
           distribution: goreleaser
           version: ~> v2
+      - name: Check artifact uploader secret
+        id: check-uploader
+        run: if [ -n "$UPLOAD_URL" ]; then echo "available=true" >> "$GITHUB_OUTPUT"; fi
+        env:
+          UPLOAD_URL: ${{ secrets.ARTIFACT_UPLOADER_URL }}
+      - name: Upload snapshot artifacts
+        if: ${{ needs.release-please.outputs.release_created != 'true' && steps.check-uploader.outputs.available == 'true' }}
+        env:
+          UPLOAD_URL: ${{ secrets.ARTIFACT_UPLOADER_URL }}
+        run: |
+          TOKEN=$(curl -sSf  -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL" | jq -r '.value')
+          for f in $(jq -r '.[] | select(.type=="Binary" or .type=="Linux Package") | .path' dist/artifacts.json); do
+            curl -sSf -X PUT -H "Authorization: Bearer $TOKEN" --data-binary "@$f" "${UPLOAD_URL%/}/snapshot/$(basename "$f")"
+          done
+      - name: Upload release artifacts
+        if: ${{ needs.release-please.outputs.release_created == 'true' && steps.check-uploader.outputs.available == 'true' }}
+        env:
+          UPLOAD_URL: ${{ secrets.ARTIFACT_UPLOADER_URL }}
+        run: |
+          TOKEN=$(curl -sSf  -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL" | jq -r '.value')
+          for f in $(jq -r '.[] | select(.type=="Binary" or .type=="Linux Package") | .path' dist/artifacts.json); do
+            curl -sSf -X PUT -H "Authorization: Bearer $TOKEN" --data-binary "@$f" "${UPLOAD_URL%/}/release/$(basename "$f")"
+          done
