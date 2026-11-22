@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vitalvas/gokit/xconfig"
-	"github.com/vitalvas/mqttv5"
+	"go.vitalvas.com/gokit/xconfig"
+	"go.vitalvas.com/mqttv5"
 )
 
 // DefaultConfigFile is the YAML config file loaded when MQTT_CONFIG is unset.

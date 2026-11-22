@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 )
 
 const reportInterval = 30 * time.Minute

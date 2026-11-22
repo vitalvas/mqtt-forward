@@ -10,9 +10,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vitalvas/mqtt-forward/internal/shadow"
-	"github.com/vitalvas/mqtt-forward/internal/system"
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqtt-forward/internal/shadow"
+	"go.vitalvas.com/mqtt-forward/internal/system"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 )
 
 const unknownSessionRejectThrottle = 5 * time.Second

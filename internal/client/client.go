@@ -9,10 +9,10 @@ import (
 	"net"
 	"sync"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
-	"github.com/vitalvas/mqtt-forward/internal/socks5"
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqtt-forward/internal/socks5"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 )
 
 const (

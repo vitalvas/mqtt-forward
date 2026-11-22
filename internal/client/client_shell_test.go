@@ -13,7 +13,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 )
 
 func TestClientShell(t *testing.T) {

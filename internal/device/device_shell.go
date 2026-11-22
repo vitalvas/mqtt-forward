@@ -5,7 +5,7 @@ package device
 import (
 	"log/slog"
 
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 )
 
 func newShellSession(id string, transport tunnel.Transport, controlTopic, dataTopic string, logger *slog.Logger) tunnel.Session {

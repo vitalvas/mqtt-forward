@@ -12,16 +12,16 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/vitalvas/gokit/xcmd"
-	"github.com/vitalvas/gokit/xlogger"
-	"github.com/vitalvas/mqtt-forward/internal/client"
-	"github.com/vitalvas/mqtt-forward/internal/config"
-	"github.com/vitalvas/mqtt-forward/internal/device"
-	"github.com/vitalvas/mqtt-forward/internal/forward"
-	"github.com/vitalvas/mqtt-forward/internal/gateway"
-	"github.com/vitalvas/mqtt-forward/internal/health"
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
-	"github.com/vitalvas/mqttv5"
+	"go.vitalvas.com/gokit/xcmd"
+	"go.vitalvas.com/gokit/xlogger"
+	"go.vitalvas.com/mqtt-forward/internal/client"
+	"go.vitalvas.com/mqtt-forward/internal/config"
+	"go.vitalvas.com/mqtt-forward/internal/device"
+	"go.vitalvas.com/mqtt-forward/internal/forward"
+	"go.vitalvas.com/mqtt-forward/internal/gateway"
+	"go.vitalvas.com/mqtt-forward/internal/health"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqttv5"
 )
 
 var (

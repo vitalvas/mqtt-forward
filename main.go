@@ -3,8 +3,8 @@ package main
 import (
 	"os"
 
-	"github.com/vitalvas/mqtt-forward/internal/cmd"
-	"github.com/vitalvas/mqtt-forward/internal/system"
+	"go.vitalvas.com/mqtt-forward/internal/cmd"
+	"go.vitalvas.com/mqtt-forward/internal/system"
 )
 
 var version string

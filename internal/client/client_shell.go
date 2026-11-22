@@ -10,9 +10,9 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 	"golang.org/x/term"
 )
 

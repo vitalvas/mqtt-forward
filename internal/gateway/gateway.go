@@ -12,9 +12,9 @@ import (
 	"log/slog"
 	"sync"
 
-	"github.com/vitalvas/gokit/xcmd"
-	"github.com/vitalvas/mqtt-forward/internal/client"
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/gokit/xcmd"
+	"go.vitalvas.com/mqtt-forward/internal/client"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 )
 
 // Route is a single gateway forward: a local listen address tunnelled to a

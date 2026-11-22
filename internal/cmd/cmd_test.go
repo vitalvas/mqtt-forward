@@ -14,9 +14,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/vitalvas/mqtt-forward/internal/config"
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
-	"github.com/vitalvas/mqttv5"
+	"go.vitalvas.com/mqtt-forward/internal/config"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqttv5"
 )
 
 type mockTransport struct {

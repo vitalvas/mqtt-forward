@@ -8,9 +8,9 @@ import (
 	"sort"
 	"sync"
 	"time"
+	"uuid"
 
-	"github.com/google/uuid"
-	"github.com/vitalvas/mqtt-forward/internal/tunnel"
+	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 )
 
 const statusTimeout = 5 * time.Second

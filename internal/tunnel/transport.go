@@ -3,8 +3,8 @@ package tunnel
 import (
 	"log/slog"
 
-	"github.com/vitalvas/mqttv5"
-	"github.com/vitalvas/mqttv5/extensions/router"
+	"go.vitalvas.com/mqttv5"
+	"go.vitalvas.com/mqttv5/extensions/router"
 )
 
 const defaultQoS = mqttv5.QoS1

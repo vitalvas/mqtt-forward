@@ -164,17 +164,16 @@ func normalizeHost(s string) (string, error) {
 // splitPort peels a trailing ":port" off s and validates the port. It returns
 // the remaining prefix (without the trailing colon) and the port string.
 func splitPort(s string, allowZero bool) (rest, port string, err error) {
-	idx := strings.LastIndex(s, ":")
-	if idx < 0 {
+	rest, port, found := strings.CutLast(s, ":")
+	if !found {
 		return "", "", fmt.Errorf("expected host:port")
 	}
 
-	port = s[idx+1:]
 	if err := validatePort(port, allowZero); err != nil {
 		return "", "", err
 	}
 
-	return s[:idx], port, nil
+	return rest, port, nil
 }
 
 // splitHost peels a trailing host field off s. The host may be a bracketed
