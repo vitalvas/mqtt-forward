@@ -105,7 +105,7 @@ func splitTarget(s string) (rest, target string, err error) {
 // the loopback interface (both IPv4 127.0.0.1 and IPv6 ::1) so forwards are not
 // exposed to the network by default. To listen on all interfaces, specify an
 // explicit bind address such as "0.0.0.0:" or "[::]:".
-const defaultBindAddr = "localhost"
+const defaultBindAddr string = "localhost"
 
 // splitListen turns the "[bind_address:]port" prefix into a normalised listen
 // address. A missing bind address defaults to the loopback interface.

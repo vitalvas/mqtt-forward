@@ -8,30 +8,30 @@ import (
 )
 
 const (
-	MessageTypeOpen    = "open"
-	MessageTypeOpenAck = "open_ack"
-	MessageTypeClose   = "close"
-	MessageTypeResize  = "resize"
-	MessageTypePing    = "ping"
-	MessageTypePong    = "pong"
+	MessageTypeOpen    string = "open"
+	MessageTypeOpenAck string = "open_ack"
+	MessageTypeClose   string = "close"
+	MessageTypeResize  string = "resize"
+	MessageTypePing    string = "ping"
+	MessageTypePong    string = "pong"
 
-	SessionModeTCP   = "tcp"
-	SessionModeShell = "shell"
-	SessionModeExec  = "exec"
+	SessionModeTCP   string = "tcp"
+	SessionModeShell string = "shell"
+	SessionModeExec  string = "exec"
 
-	DataHeaderSize = 4
-	MaxPayloadSize = 64 * 1024
-	ReorderBufSize = 64
+	DataHeaderSize int = 4
+	MaxPayloadSize int = 64 * 1024
+	ReorderBufSize int = 64
 
-	FlowControlWindow = 256 * 1024
-	StaleTimeout      = 60 // seconds; defense-in-depth backstop for the per-session keepalive
+	FlowControlWindow int = 256 * 1024
+	StaleTimeout      int = 60 // seconds; defense-in-depth backstop for the per-session keepalive
 
-	topicPrefix  = "tunnel"
-	topicIn      = "in"
-	topicOut     = "out"
-	topicControl = "control"
-	topicData    = "data"
-	topicShared  = "__shared__"
+	topicPrefix  string = "tunnel"
+	topicIn      string = "in"
+	topicOut     string = "out"
+	topicControl string = "control"
+	topicData    string = "data"
+	topicShared  string = "__shared__"
 )
 
 // SharedPingTopic returns the broadcast topic for status pings.

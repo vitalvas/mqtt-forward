@@ -16,9 +16,9 @@ import (
 )
 
 const (
-	openAckTimeout            = 10 * time.Second
-	pingTimeout               = 2 * time.Second
-	sessionKeepaliveMaxMisses = 3
+	openAckTimeout            time.Duration = 10 * time.Second
+	pingTimeout               time.Duration = 2 * time.Second
+	sessionKeepaliveMaxMisses int           = 3
 )
 
 // sessionKeepaliveInterval is the cadence of per-session keepalive pings.

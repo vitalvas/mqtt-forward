@@ -37,7 +37,7 @@ type TCPSessionConfig struct {
 }
 
 func NewTCPSession(cfg TCPSessionConfig) *TCPSession {
-	fc := NewFlowControl(FlowControlWindow)
+	fc := NewFlowControl(uint64(FlowControlWindow))
 
 	return &TCPSession{
 		id:           cfg.ID,

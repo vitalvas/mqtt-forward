@@ -15,7 +15,7 @@ import (
 
 // DefaultConfigFile is the YAML config file loaded when MQTT_CONFIG is unset.
 // A missing file is not an error; values fall back to defaults and environment.
-const DefaultConfigFile = "/etc/mqtt-forward/config.yaml"
+const DefaultConfigFile string = "/etc/mqtt-forward/config.yaml"
 
 // Load populates cfg from, in increasing order of precedence: struct defaults,
 // the YAML config file, then environment variables. The config file path is

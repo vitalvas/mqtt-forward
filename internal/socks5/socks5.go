@@ -9,21 +9,21 @@ import (
 )
 
 const (
-	Version5 = 0x05
+	Version5 byte = 0x05
 
-	AuthNone         = 0x00
-	AuthNoAcceptable = 0xFF
+	AuthNone         byte = 0x00
+	AuthNoAcceptable byte = 0xFF
 
-	CmdConnect = 0x01
+	CmdConnect byte = 0x01
 
-	AddrTypeIPv4   = 0x01
-	AddrTypeDomain = 0x03
-	AddrTypeIPv6   = 0x04
+	AddrTypeIPv4   byte = 0x01
+	AddrTypeDomain byte = 0x03
+	AddrTypeIPv6   byte = 0x04
 
-	ReplySuccess             = 0x00
-	ReplyGeneralFailure      = 0x01
-	ReplyConnectionRefused   = 0x05
-	ReplyCommandNotSupported = 0x07
+	ReplySuccess             byte = 0x00
+	ReplyGeneralFailure      byte = 0x01
+	ReplyConnectionRefused   byte = 0x05
+	ReplyCommandNotSupported byte = 0x07
 )
 
 // Handshake performs the SOCKS5 greeting and CONNECT negotiation,

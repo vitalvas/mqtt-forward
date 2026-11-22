@@ -117,7 +117,7 @@ func TestHandshake(t *testing.T) {
 			// Read rejection response
 			resp := make([]byte, 2)
 			client.Read(resp)
-			assert.Equal(t, byte(AuthNoAcceptable), resp[1])
+			assert.Equal(t, AuthNoAcceptable, resp[1])
 		}()
 
 		_, err := Handshake(server)
@@ -143,7 +143,7 @@ func TestHandshake(t *testing.T) {
 			// Read failure reply (SendFailure writes before Handshake returns)
 			reply := make([]byte, 10)
 			client.Read(reply)
-			assert.Equal(t, byte(ReplyCommandNotSupported), reply[1])
+			assert.Equal(t, ReplyCommandNotSupported, reply[1])
 		}()
 
 		_, err := Handshake(server)
@@ -223,9 +223,9 @@ func TestSendSuccess(t *testing.T) {
 		_, err := client.Read(reply)
 		require.NoError(t, err)
 
-		assert.Equal(t, byte(Version5), reply[0])
-		assert.Equal(t, byte(ReplySuccess), reply[1])
-		assert.Equal(t, byte(AddrTypeIPv4), reply[3])
+		assert.Equal(t, Version5, reply[0])
+		assert.Equal(t, ReplySuccess, reply[1])
+		assert.Equal(t, AddrTypeIPv4, reply[3])
 	})
 
 	t.Run("with_tcp_addr", func(t *testing.T) {
@@ -247,7 +247,7 @@ func TestSendSuccess(t *testing.T) {
 		_, err := client.Read(reply)
 		require.NoError(t, err)
 
-		assert.Equal(t, byte(ReplySuccess), reply[1])
+		assert.Equal(t, ReplySuccess, reply[1])
 		assert.Equal(t, byte(10), reply[4])
 		assert.Equal(t, byte(0), reply[5])
 		assert.Equal(t, byte(0), reply[6])
@@ -277,9 +277,9 @@ func TestSendSuccess(t *testing.T) {
 		_, err := client.Read(reply)
 		require.NoError(t, err)
 
-		assert.Equal(t, byte(Version5), reply[0])
-		assert.Equal(t, byte(ReplySuccess), reply[1])
-		assert.Equal(t, byte(AddrTypeIPv6), reply[3])
+		assert.Equal(t, Version5, reply[0])
+		assert.Equal(t, ReplySuccess, reply[1])
+		assert.Equal(t, AddrTypeIPv6, reply[3])
 
 		ip := net.IP(reply[4:20])
 		assert.True(t, net.ParseIP("::1").Equal(ip))
@@ -304,7 +304,7 @@ func TestSendFailure(t *testing.T) {
 		_, err := client.Read(reply)
 		require.NoError(t, err)
 
-		assert.Equal(t, byte(Version5), reply[0])
-		assert.Equal(t, byte(ReplyConnectionRefused), reply[1])
+		assert.Equal(t, Version5, reply[0])
+		assert.Equal(t, ReplyConnectionRefused, reply[1])
 	})
 }

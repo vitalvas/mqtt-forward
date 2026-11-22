@@ -32,7 +32,7 @@ type ShellSession struct {
 }
 
 func NewShellSession(id string, transport Transport, controlTopic, dataTopic string, logger *slog.Logger) *ShellSession {
-	fc := NewFlowControl(FlowControlWindow)
+	fc := NewFlowControl(uint64(FlowControlWindow))
 
 	return &ShellSession{
 		id:           id,

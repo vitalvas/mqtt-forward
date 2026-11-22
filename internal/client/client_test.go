@@ -601,7 +601,7 @@ func TestClientHandleControl(t *testing.T) {
 		require.NoError(t, c.subscribe())
 
 		sess := tunnel.NewExecClientSession("sess-ack", mt, testLogger())
-		sess.FlowControl().AddSent(tunnel.FlowControlWindow)
+		sess.FlowControl().AddSent(uint64(tunnel.FlowControlWindow))
 		require.NoError(t, c.manager.Add(sess))
 
 		assert.False(t, sess.FlowControl().CanSend(1))
@@ -609,7 +609,7 @@ func TestClientHandleControl(t *testing.T) {
 		ackMsg := tunnel.ControlMessage{
 			Type:      "ack",
 			SessionID: "sess-ack",
-			AckBytes:  tunnel.FlowControlWindow,
+			AckBytes:  uint64(tunnel.FlowControlWindow),
 		}
 
 		ackData, _ := json.Marshal(ackMsg)
@@ -1235,7 +1235,7 @@ func TestClientSOCKS5(t *testing.T) {
 			// Wait for device ack simulation and SOCKS5 success reply
 			reply := make([]byte, 10)
 			connA.Read(reply)
-			assert.Equal(t, byte(socks5.ReplySuccess), reply[1])
+			assert.Equal(t, socks5.ReplySuccess, reply[1])
 		}()
 
 		go func() {
@@ -1284,7 +1284,7 @@ func TestClientSOCKS5(t *testing.T) {
 
 			reply := make([]byte, 10)
 			connA.Read(reply)
-			assert.Equal(t, byte(socks5.ReplyConnectionRefused), reply[1])
+			assert.Equal(t, socks5.ReplyConnectionRefused, reply[1])
 			connA.Close()
 		}()
 

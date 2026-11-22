@@ -355,7 +355,7 @@ func TestFlowControl(t *testing.T) {
 func TestSequenceWriter(t *testing.T) {
 	t.Run("write_single_chunk", func(t *testing.T) {
 		mt := NewMockTransport("test")
-		fc := NewFlowControl(FlowControlWindow)
+		fc := NewFlowControl(uint64(FlowControlWindow))
 		sw := NewSequenceWriter(mt, "test/data", fc)
 
 		err := sw.Write(context.Background(), []byte("hello"))
@@ -372,7 +372,7 @@ func TestSequenceWriter(t *testing.T) {
 
 	t.Run("write_splits_large_payload", func(t *testing.T) {
 		mt := NewMockTransport("test")
-		fc := NewFlowControl(FlowControlWindow)
+		fc := NewFlowControl(uint64(FlowControlWindow))
 		sw := NewSequenceWriter(mt, "test/data", fc)
 
 		data := make([]byte, MaxPayloadSize+100)
@@ -397,7 +397,7 @@ func TestSequenceWriter(t *testing.T) {
 
 	t.Run("sequence_increments", func(t *testing.T) {
 		mt := NewMockTransport("test")
-		fc := NewFlowControl(FlowControlWindow)
+		fc := NewFlowControl(uint64(FlowControlWindow))
 		sw := NewSequenceWriter(mt, "test/data", fc)
 
 		require.NoError(t, sw.Write(context.Background(), []byte("a")))
@@ -415,7 +415,7 @@ func TestSequenceWriter(t *testing.T) {
 
 	t.Run("write_empty_data", func(t *testing.T) {
 		mt := NewMockTransport("test")
-		fc := NewFlowControl(FlowControlWindow)
+		fc := NewFlowControl(uint64(FlowControlWindow))
 		sw := NewSequenceWriter(mt, "test/data", fc)
 
 		err := sw.Write(context.Background(), nil)

@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/spf13/cobra"
 	"go.vitalvas.com/gokit/xcmd"
+	"go.vitalvas.com/gokit/xflags"
 	"go.vitalvas.com/gokit/xlogger"
 	"go.vitalvas.com/mqtt-forward/internal/client"
 	"go.vitalvas.com/mqtt-forward/internal/config"
@@ -49,113 +49,147 @@ func defaultConnectTransport(cfg *config.Config, logger *slog.Logger) (tunnel.Tr
 	return tunnel.NewMQTTTransport(mqttClient, logger), nil
 }
 
-func NewRootCmd() *cobra.Command {
-	rootCmd := &cobra.Command{
-		Use:          "mqtt-forward",
-		Short:        "TCP and shell tunnel over MQTT",
-		Version:      appVersion,
-		SilenceUsage: true,
-		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
-			return config.Load(&cfg)
-		},
-	}
-
-	rootCmd.AddCommand(newDeviceCmd())
-	rootCmd.AddCommand(newClientCmd())
-	rootCmd.AddCommand(newGatewayCmd())
-
-	return rootCmd
+func newLogger() *slog.Logger {
+	return xlogger.New(xlogger.Config{
+		Level:   cfg.LogLevel,
+		LogType: "json",
+	})
 }
 
-func newDeviceCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "device",
-		Short: "Run in device mode (accept tunnel requests)",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			logger := xlogger.New(xlogger.Config{
-				Level:   cfg.LogLevel,
-				LogType: "json",
-			})
+func NewRootCmd() (*xflags.Parser, error) {
+	p := xflags.New("mqtt-forward")
+	p.SetDescription("TCP and shell tunnel over MQTT")
+	p.SetVersion(appVersion)
 
-			applyDeviceTLSDefaults()
-
-			if cfg.DeviceID == "" {
-				cfg.DeviceID = defaultDeviceID()
-			}
-
-			cfg.ClientID = cfg.DeviceID
-
-			var dev *device.Device
-
-			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
-				onConnectionLost: func() {
-					if dev != nil {
-						dev.CloseAllSessions()
-					}
-				},
-				onConnected: func() {
-					if dev != nil {
-						dev.ReportNow()
-					}
-				},
-			})
-
-			transport, err := connectTransport(&cfg, logger)
-			if err != nil {
-				return err
-			}
-			defer transport.Close()
-
-			dev = device.New(transport, cfg.DeviceID, logger)
-			dev.SetHealthCheck(transport.IsConnected)
-			dev.SetVersion(appVersion)
-
-			if cfg.IsAWSIoT() {
-				dev.SetAWSIoT(true)
-			}
-
-			group, _ := xcmd.ErrGroup(cmd.Context())
-
-			group.Go(func(ctx context.Context) error {
-				return dev.Run(ctx)
-			})
-
-			if cfg.HealthListen != "" {
-				healthServer := health.New(cfg.HealthListen, transport.IsConnected, logger)
-
-				group.Go(func(ctx context.Context) error {
-					return healthServer.Run(ctx)
-				})
-			}
-
-			group.Go(func(ctx context.Context) error {
-				return xcmd.WaitInterrupted(ctx)
-			})
-
-			return group.Wait()
-		},
+	device, err := newDeviceCmd()
+	if err != nil {
+		return nil, err
 	}
 
-	cmd.Flags().StringVar(&cfg.DeviceID, "device-id", "", "Device identifier (or MQTT_DEVICE_ID)")
-	cmd.Flags().StringVar(&cfg.HealthListen, "health-listen", "", "HTTP health endpoint: host:port or unix socket path (or MQTT_HEALTH_LISTEN)")
+	clientCmd, err := newClientCmd()
+	if err != nil {
+		return nil, err
+	}
 
-	return cmd
+	gatewayCmd, err := newGatewayCmd()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := p.AddCommand(device, clientCmd, gatewayCmd); err != nil {
+		return nil, err
+	}
+
+	return p, nil
 }
 
-func newClientCmd() *cobra.Command {
-	clientCmd := &cobra.Command{
-		Use:   "client",
-		Short: "Run in client mode (initiate tunnel requests)",
+type deviceOptions struct {
+	DeviceID     string `long:"device-id" description:"Device identifier (or MQTT_DEVICE_ID)"`
+	HealthListen string `long:"health-listen" description:"HTTP health endpoint: host:port or unix socket path (or MQTT_HEALTH_LISTEN)"`
+}
+
+func newDeviceCmd() (*xflags.Command, error) {
+	var opts deviceOptions
+
+	cmd := xflags.NewCommand("device", "Run in device mode (accept tunnel requests)")
+	if err := cmd.AddOptions(&opts); err != nil {
+		return nil, err
+	}
+	cmd.SetRun(func(ctx context.Context, _ *xflags.Command, _ []string) error {
+		if err := config.Load(&cfg); err != nil {
+			return err
+		}
+
+		logger := newLogger()
+
+		cfg.DeviceID = opts.DeviceID
+		cfg.HealthListen = opts.HealthListen
+
+		applyDeviceTLSDefaults()
+
+		if cfg.DeviceID == "" {
+			cfg.DeviceID = defaultDeviceID()
+		}
+
+		cfg.ClientID = cfg.DeviceID
+
+		var dev *device.Device
+
+		cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() {
+				if dev != nil {
+					dev.CloseAllSessions()
+				}
+			},
+			onConnected: func() {
+				if dev != nil {
+					dev.ReportNow()
+				}
+			},
+		})
+
+		transport, err := connectTransport(&cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer transport.Close()
+
+		dev = device.New(transport, cfg.DeviceID, logger)
+		dev.SetHealthCheck(transport.IsConnected)
+		dev.SetVersion(appVersion)
+
+		if cfg.IsAWSIoT() {
+			dev.SetAWSIoT(true)
+		}
+
+		group, _ := xcmd.ErrGroup(ctx)
+
+		group.Go(func(ctx context.Context) error {
+			return dev.Run(ctx)
+		})
+
+		if cfg.HealthListen != "" {
+			healthServer := health.New(cfg.HealthListen, transport.IsConnected, logger)
+
+			group.Go(func(ctx context.Context) error {
+				return healthServer.Run(ctx)
+			})
+		}
+
+		group.Go(func(ctx context.Context) error {
+			return xcmd.WaitInterrupted(ctx)
+		})
+
+		return group.Wait()
+	})
+
+	return cmd, nil
+}
+
+func newClientCmd() (*xflags.Command, error) {
+	clientCmd := xflags.NewCommand("client", "Run in client mode (initiate tunnel requests)")
+
+	subFactories := []func() (*xflags.Command, error){
+		newClientTCPCmd,
+		newClientSOCKS5Cmd,
+		newClientShellCmd,
+		newClientExecCmd,
+		newClientPingCmd,
+		newClientStatusCmd,
 	}
 
-	clientCmd.AddCommand(newClientTCPCmd())
-	clientCmd.AddCommand(newClientSOCKS5Cmd())
-	clientCmd.AddCommand(newClientShellCmd())
-	clientCmd.AddCommand(newClientExecCmd())
-	clientCmd.AddCommand(newClientPingCmd())
-	clientCmd.AddCommand(newClientStatusCmd())
+	for _, factory := range subFactories {
+		sub, err := factory()
+		if err != nil {
+			return nil, err
+		}
 
-	return clientCmd
+		if err := clientCmd.AddCommand(sub); err != nil {
+			return nil, err
+		}
+	}
+
+	return clientCmd, nil
 }
 
 func resolveClientID() {
@@ -164,73 +198,77 @@ func resolveClientID() {
 	}
 }
 
-func newGatewayCmd() *cobra.Command {
-	var routeFlags []string
+type gatewayOptions struct {
+	Routes       []string `long:"route" description:"Route device=ID,listen=ADDR,target=HOST:PORT (repeatable; overrides config routes by listen address)"`
+	HealthListen string   `long:"health-listen" description:"HTTP health endpoint: host:port or unix socket path (or MQTT_HEALTH_LISTEN)"`
+}
 
-	cmd := &cobra.Command{
-		Use:   "gateway",
-		Short: "Run in gateway mode (forward multiple listeners to multiple devices)",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			logger := xlogger.New(xlogger.Config{
-				Level:   cfg.LogLevel,
-				LogType: "json",
-			})
+func newGatewayCmd() (*xflags.Command, error) {
+	var opts gatewayOptions
 
-			routes, err := mergeGatewayRoutes(cfg.Gateway.Routes, routeFlags)
-			if err != nil {
-				return err
-			}
-
-			resolveClientID()
-
-			var gw *gateway.Gateway
-
-			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
-				onConnectionLost: func() {
-					if gw != nil {
-						gw.CloseAllSessions()
-					}
-				},
-			})
-
-			transport, err := connectTransport(&cfg, logger)
-			if err != nil {
-				return err
-			}
-			defer transport.Close()
-
-			gw, err = gateway.New(transport, routes, logger)
-			if err != nil {
-				return err
-			}
-
-			group, _ := xcmd.ErrGroup(cmd.Context())
-
-			group.Go(func(ctx context.Context) error {
-				return gw.Run(ctx)
-			})
-
-			if cfg.HealthListen != "" {
-				healthServer := health.New(cfg.HealthListen, transport.IsConnected, logger)
-
-				group.Go(func(ctx context.Context) error {
-					return healthServer.Run(ctx)
-				})
-			}
-
-			group.Go(func(ctx context.Context) error {
-				return xcmd.WaitInterrupted(ctx)
-			})
-
-			return group.Wait()
-		},
+	cmd := xflags.NewCommand("gateway", "Run in gateway mode (forward multiple listeners to multiple devices)")
+	if err := cmd.AddOptions(&opts); err != nil {
+		return nil, err
 	}
+	cmd.SetRun(func(ctx context.Context, _ *xflags.Command, _ []string) error {
+		if err := config.Load(&cfg); err != nil {
+			return err
+		}
 
-	cmd.Flags().StringArrayVar(&routeFlags, "route", nil,
-		"Route device=ID,listen=ADDR,target=HOST:PORT (repeatable; overrides config routes by listen address)")
-	cmd.Flags().StringVar(&cfg.HealthListen, "health-listen", "", "HTTP health endpoint: host:port or unix socket path (or MQTT_HEALTH_LISTEN)")
+		logger := newLogger()
 
-	return cmd
+		cfg.HealthListen = opts.HealthListen
+
+		routes, err := mergeGatewayRoutes(cfg.Gateway.Routes, opts.Routes)
+		if err != nil {
+			return err
+		}
+
+		resolveClientID()
+
+		var gw *gateway.Gateway
+
+		cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() {
+				if gw != nil {
+					gw.CloseAllSessions()
+				}
+			},
+		})
+
+		transport, err := connectTransport(&cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer transport.Close()
+
+		gw, err = gateway.New(transport, routes, logger)
+		if err != nil {
+			return err
+		}
+
+		group, _ := xcmd.ErrGroup(ctx)
+
+		group.Go(func(ctx context.Context) error {
+			return gw.Run(ctx)
+		})
+
+		if cfg.HealthListen != "" {
+			healthServer := health.New(cfg.HealthListen, transport.IsConnected, logger)
+
+			group.Go(func(ctx context.Context) error {
+				return healthServer.Run(ctx)
+			})
+		}
+
+		group.Go(func(ctx context.Context) error {
+			return xcmd.WaitInterrupted(ctx)
+		})
+
+		return group.Wait()
+	})
+
+	return cmd, nil
 }
 
 // mergeGatewayRoutes combines config routes with --route flag routes. Flag
@@ -323,328 +361,319 @@ func parseRouteFlag(raw string) (gateway.Route, error) {
 	return route, nil
 }
 
-func newClientTCPCmd() *cobra.Command {
-	var (
-		localForwards []string
-		deviceID      string
-	)
-
-	cmd := &cobra.Command{
-		Use:   "tcp",
-		Short: "Forward TCP connections through MQTT tunnel",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			logger := xlogger.New(xlogger.Config{
-				Level:   cfg.LogLevel,
-				LogType: "json",
-			})
-
-			specs, err := forward.ParseAll(localForwards)
-			if err != nil {
-				return err
-			}
-
-			forwards := make([]client.TCPForward, len(specs))
-			for i, s := range specs {
-				forwards[i] = client.TCPForward{Listen: s.Listen, Target: s.Target}
-			}
-
-			resolveClientID()
-
-			var c *client.Client
-
-			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
-				onConnectionLost: func() {
-					if c != nil {
-						c.CloseAllSessions()
-					}
-				},
-			})
-
-			transport, err := connectTransport(&cfg, logger)
-			if err != nil {
-				return err
-			}
-			defer transport.Close()
-
-			c = client.New(transport, deviceID, logger)
-
-			group, _ := xcmd.ErrGroup(cmd.Context())
-
-			group.Go(func(ctx context.Context) error {
-				return c.RunTCPForwards(ctx, forwards)
-			})
-
-			group.Go(func(ctx context.Context) error {
-				return xcmd.WaitInterrupted(ctx)
-			})
-
-			return group.Wait()
-		},
-	}
-
-	cmd.Flags().StringArrayVarP(&localForwards, "local", "L", nil,
-		"Local forward [bind_address:]port:host:hostport (repeatable; defaults to loopback)")
-	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-
-	cmd.MarkFlagRequired("local")
-	cmd.MarkFlagRequired("device")
-
-	return cmd
+type clientTCPOptions struct {
+	Local  []string `short:"L" long:"local" required:"true" description:"Local forward [bind_address:]port:host:hostport (repeatable; defaults to loopback)"`
+	Device string   `long:"device" required:"true" description:"Target device ID"`
 }
 
-func newClientSOCKS5Cmd() *cobra.Command {
-	var (
-		listen   string
-		deviceID string
-	)
+func newClientTCPCmd() (*xflags.Command, error) {
+	var opts clientTCPOptions
 
-	cmd := &cobra.Command{
-		Use:   "socks5",
-		Short: "Run SOCKS5 proxy through MQTT tunnel",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			logger := xlogger.New(xlogger.Config{
-				Level:   cfg.LogLevel,
-				LogType: "json",
-			})
-
-			resolveClientID()
-
-			var c *client.Client
-
-			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
-				onConnectionLost: func() {
-					if c != nil {
-						c.CloseAllSessions()
-					}
-				},
-			})
-
-			transport, err := connectTransport(&cfg, logger)
-			if err != nil {
-				return err
-			}
-			defer transport.Close()
-
-			c = client.New(transport, deviceID, logger)
-
-			group, _ := xcmd.ErrGroup(cmd.Context())
-
-			group.Go(func(ctx context.Context) error {
-				return c.RunSOCKS5(ctx, listen)
-			})
-
-			group.Go(func(ctx context.Context) error {
-				return xcmd.WaitInterrupted(ctx)
-			})
-
-			return group.Wait()
-		},
+	cmd := xflags.NewCommand("tcp", "Forward TCP connections through MQTT tunnel")
+	if err := cmd.AddOptions(&opts); err != nil {
+		return nil, err
 	}
+	cmd.SetRun(func(ctx context.Context, _ *xflags.Command, _ []string) error {
+		if err := config.Load(&cfg); err != nil {
+			return err
+		}
 
-	cmd.Flags().StringVar(&listen, "listen", ":1080", "Local listen address")
-	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
+		logger := newLogger()
 
-	cmd.MarkFlagRequired("device")
+		specs, err := forward.ParseAll(opts.Local)
+		if err != nil {
+			return err
+		}
 
-	return cmd
-}
+		forwards := make([]client.TCPForward, len(specs))
+		for i, s := range specs {
+			forwards[i] = client.TCPForward{Listen: s.Listen, Target: s.Target}
+		}
 
-func newClientShellCmd() *cobra.Command {
-	var deviceID string
+		resolveClientID()
 
-	cmd := &cobra.Command{
-		Use:   "shell",
-		Short: "Open interactive shell on device through MQTT tunnel",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			logger := xlogger.New(xlogger.Config{
-				Level:   cfg.LogLevel,
-				LogType: "json",
-			})
+		var c *client.Client
 
-			resolveClientID()
-
-			var c *client.Client
-
-			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
-				onConnectionLost: func() {
-					if c != nil {
-						c.CloseAllSessions()
-					}
-				},
-			})
-
-			transport, err := connectTransport(&cfg, logger)
-			if err != nil {
-				return err
-			}
-			defer transport.Close()
-
-			c = client.New(transport, deviceID, logger)
-
-			return c.RunShell(cmd.Context())
-		},
-	}
-
-	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-
-	cmd.MarkFlagRequired("device")
-
-	return cmd
-}
-
-func newClientExecCmd() *cobra.Command {
-	var (
-		deviceID string
-		timeout  time.Duration
-	)
-
-	cmd := &cobra.Command{
-		Use:   "exec [flags] -- COMMAND [ARGS...]",
-		Short: "Execute command on device through MQTT tunnel",
-		Args:  cobra.MinimumNArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			logger := xlogger.New(xlogger.Config{
-				Level:   cfg.LogLevel,
-				LogType: "json",
-			})
-
-			resolveClientID()
-
-			command := strings.Join(args, " ")
-
-			var c *client.Client
-
-			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
-				onConnectionLost: func() {
-					if c != nil {
-						c.CloseAllSessions()
-					}
-				},
-			})
-
-			transport, err := connectTransport(&cfg, logger)
-			if err != nil {
-				return err
-			}
-			defer transport.Close()
-
-			c = client.New(transport, deviceID, logger)
-
-			ctx, cancel := context.WithTimeout(cmd.Context(), timeout)
-			defer cancel()
-
-			sigCh := make(chan os.Signal, 1)
-			signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
-
-			go func() {
-				select {
-				case <-sigCh:
-					cancel()
-				case <-ctx.Done():
+		cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() {
+				if c != nil {
+					c.CloseAllSessions()
 				}
+			},
+		})
 
-				// Keep intercepting signals to prevent default handler from killing the process
-				for range sigCh { //nolint:revive // intentionally draining signals
+		transport, err := connectTransport(&cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer transport.Close()
+
+		c = client.New(transport, opts.Device, logger)
+
+		group, _ := xcmd.ErrGroup(ctx)
+
+		group.Go(func(ctx context.Context) error {
+			return c.RunTCPForwards(ctx, forwards)
+		})
+
+		group.Go(func(ctx context.Context) error {
+			return xcmd.WaitInterrupted(ctx)
+		})
+
+		return group.Wait()
+	})
+
+	return cmd, nil
+}
+
+type clientSOCKS5Options struct {
+	Listen string `long:"listen" default:":1080" description:"Local listen address"`
+	Device string `long:"device" required:"true" description:"Target device ID"`
+}
+
+func newClientSOCKS5Cmd() (*xflags.Command, error) {
+	var opts clientSOCKS5Options
+
+	cmd := xflags.NewCommand("socks5", "Run SOCKS5 proxy through MQTT tunnel")
+	if err := cmd.AddOptions(&opts); err != nil {
+		return nil, err
+	}
+	cmd.SetRun(func(ctx context.Context, _ *xflags.Command, _ []string) error {
+		if err := config.Load(&cfg); err != nil {
+			return err
+		}
+
+		logger := newLogger()
+
+		resolveClientID()
+
+		var c *client.Client
+
+		cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() {
+				if c != nil {
+					c.CloseAllSessions()
 				}
-			}()
+			},
+		})
 
-			exitCode, err := c.RunExec(ctx, command, os.Stdout)
-			if err != nil {
-				return err
-			}
+		transport, err := connectTransport(&cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer transport.Close()
 
-			if exitCode < 0 {
-				exitCode = 0
-			}
+		c = client.New(transport, opts.Device, logger)
 
-			os.Exit(exitCode)
+		group, _ := xcmd.ErrGroup(ctx)
 
-			return nil
-		},
-	}
+		group.Go(func(ctx context.Context) error {
+			return c.RunSOCKS5(ctx, opts.Listen)
+		})
 
-	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-	cmd.Flags().DurationVar(&timeout, "timeout", time.Minute, "Command timeout")
+		group.Go(func(ctx context.Context) error {
+			return xcmd.WaitInterrupted(ctx)
+		})
 
-	cmd.MarkFlagRequired("device")
+		return group.Wait()
+	})
 
-	return cmd
+	return cmd, nil
 }
 
-func newClientPingCmd() *cobra.Command {
-	var (
-		deviceID string
-		count    int
-		interval time.Duration
-	)
-
-	cmd := &cobra.Command{
-		Use:   "ping",
-		Short: "Test latency and availability of a device",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			logger := xlogger.New(xlogger.Config{
-				Level:   cfg.LogLevel,
-				LogType: "json",
-			})
-
-			resolveClientID()
-
-			var c *client.Client
-
-			cfg.EventHandler = newEventHandler(logger, eventCallbacks{
-				onConnectionLost: func() {
-					if c != nil {
-						c.CloseAllSessions()
-					}
-				},
-			})
-
-			transport, err := connectTransport(&cfg, logger)
-			if err != nil {
-				return err
-			}
-			defer transport.Close()
-
-			c = client.New(transport, deviceID, logger)
-
-			return c.RunPing(cmd.Context(), count, interval, os.Stdout)
-		},
-	}
-
-	cmd.Flags().StringVar(&deviceID, "device", "", "Target device ID")
-	cmd.Flags().IntVar(&count, "count", 4, "Number of pings to send")
-	cmd.Flags().DurationVar(&interval, "interval", time.Second, "Interval between pings")
-
-	cmd.MarkFlagRequired("device")
-
-	return cmd
+type clientShellOptions struct {
+	Device string `long:"device" required:"true" description:"Target device ID"`
 }
 
-func newClientStatusCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "status",
-		Short: "Discover online devices",
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			logger := xlogger.New(xlogger.Config{
-				Level:   cfg.LogLevel,
-				LogType: "json",
-			})
+func newClientShellCmd() (*xflags.Command, error) {
+	var opts clientShellOptions
 
-			resolveClientID()
-
-			cfg.EventHandler = newEventHandler(logger, eventCallbacks{})
-
-			transport, err := connectTransport(&cfg, logger)
-			if err != nil {
-				return err
-			}
-			defer transport.Close()
-
-			return client.RunStatus(cmd.Context(), transport, os.Stdout)
-		},
+	cmd := xflags.NewCommand("shell", "Open interactive shell on device through MQTT tunnel")
+	if err := cmd.AddOptions(&opts); err != nil {
+		return nil, err
 	}
+	cmd.SetRun(func(ctx context.Context, _ *xflags.Command, _ []string) error {
+		if err := config.Load(&cfg); err != nil {
+			return err
+		}
 
-	return cmd
+		logger := newLogger()
+
+		resolveClientID()
+
+		var c *client.Client
+
+		cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() {
+				if c != nil {
+					c.CloseAllSessions()
+				}
+			},
+		})
+
+		transport, err := connectTransport(&cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer transport.Close()
+
+		c = client.New(transport, opts.Device, logger)
+
+		return c.RunShell(ctx)
+	})
+
+	return cmd, nil
+}
+
+type clientExecOptions struct {
+	Device  string        `long:"device" required:"true" description:"Target device ID"`
+	Timeout time.Duration `long:"timeout" default:"1m" description:"Command timeout"`
+}
+
+func newClientExecCmd() (*xflags.Command, error) {
+	var opts clientExecOptions
+
+	cmd := xflags.NewCommand("exec", "Execute command on device through MQTT tunnel")
+	if err := cmd.AddOptions(&opts); err != nil {
+		return nil, err
+	}
+	cmd.SetRun(func(ctx context.Context, _ *xflags.Command, args []string) error {
+		if len(args) == 0 {
+			return fmt.Errorf("exec requires a command")
+		}
+
+		if err := config.Load(&cfg); err != nil {
+			return err
+		}
+
+		logger := newLogger()
+
+		resolveClientID()
+
+		command := strings.Join(args, " ")
+
+		var c *client.Client
+
+		cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() {
+				if c != nil {
+					c.CloseAllSessions()
+				}
+			},
+		})
+
+		transport, err := connectTransport(&cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer transport.Close()
+
+		c = client.New(transport, opts.Device, logger)
+
+		ctx, cancel := context.WithTimeout(ctx, opts.Timeout)
+		defer cancel()
+
+		sigCh := make(chan os.Signal, 1)
+		signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+
+		go func() {
+			select {
+			case <-sigCh:
+				cancel()
+			case <-ctx.Done():
+			}
+
+			// Keep intercepting signals to prevent default handler from killing the process
+			for range sigCh { //nolint:revive // intentionally draining signals
+			}
+		}()
+
+		exitCode, err := c.RunExec(ctx, command, os.Stdout)
+		if err != nil {
+			return err
+		}
+
+		if exitCode < 0 {
+			exitCode = 0
+		}
+
+		os.Exit(exitCode)
+
+		return nil
+	})
+
+	return cmd, nil
+}
+
+type clientPingOptions struct {
+	Device   string        `long:"device" required:"true" description:"Target device ID"`
+	Count    int           `long:"count" default:"4" description:"Number of pings to send"`
+	Interval time.Duration `long:"interval" default:"1s" description:"Interval between pings"`
+}
+
+func newClientPingCmd() (*xflags.Command, error) {
+	var opts clientPingOptions
+
+	cmd := xflags.NewCommand("ping", "Test latency and availability of a device")
+	if err := cmd.AddOptions(&opts); err != nil {
+		return nil, err
+	}
+	cmd.SetRun(func(ctx context.Context, _ *xflags.Command, _ []string) error {
+		if err := config.Load(&cfg); err != nil {
+			return err
+		}
+
+		logger := newLogger()
+
+		resolveClientID()
+
+		var c *client.Client
+
+		cfg.EventHandler = newEventHandler(logger, eventCallbacks{
+			onConnectionLost: func() {
+				if c != nil {
+					c.CloseAllSessions()
+				}
+			},
+		})
+
+		transport, err := connectTransport(&cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer transport.Close()
+
+		c = client.New(transport, opts.Device, logger)
+
+		return c.RunPing(ctx, opts.Count, opts.Interval, os.Stdout)
+	})
+
+	return cmd, nil
+}
+
+func newClientStatusCmd() (*xflags.Command, error) {
+	cmd := xflags.NewCommand("status", "Discover online devices")
+	cmd.SetRun(func(ctx context.Context, _ *xflags.Command, _ []string) error {
+		if err := config.Load(&cfg); err != nil {
+			return err
+		}
+
+		logger := newLogger()
+
+		resolveClientID()
+
+		cfg.EventHandler = newEventHandler(logger, eventCallbacks{})
+
+		transport, err := connectTransport(&cfg, logger)
+		if err != nil {
+			return err
+		}
+		defer transport.Close()
+
+		return client.RunStatus(ctx, transport, os.Stdout)
+	})
+
+	return cmd, nil
 }
 
 type eventCallbacks struct {

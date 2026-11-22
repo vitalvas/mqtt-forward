@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.vitalvas.com/gokit/xflags"
 	"go.vitalvas.com/mqtt-forward/internal/config"
 	"go.vitalvas.com/mqtt-forward/internal/tunnel"
 	"go.vitalvas.com/mqttv5"
@@ -106,167 +107,152 @@ func setFailingConnector(t *testing.T) {
 	}
 }
 
+// buildCmd builds a command from its factory, failing the test on a
+// construction error.
+func buildCmd(t *testing.T, factory func() (*xflags.Command, error)) *xflags.Command {
+	t.Helper()
+
+	cmd, err := factory()
+	require.NoError(t, err)
+	require.NotNil(t, cmd)
+
+	return cmd
+}
+
+// runCmd attaches a factory-built command to a throwaway parser and executes it
+// with the given context and arguments. The command name is prepended so the
+// parser dispatches to it.
+func runCmd(ctx context.Context, t *testing.T, factory func() (*xflags.Command, error), args ...string) error {
+	t.Helper()
+
+	cmd := buildCmd(t, factory)
+
+	p := xflags.New("test")
+	require.NoError(t, p.AddCommand(cmd))
+	p.SetArgs(append([]string{cmd.Name()}, args...))
+
+	return p.Execute(ctx)
+}
+
+// hasSubcommand reports whether parent resolves a subcommand with the given name.
+func hasSubcommand(t *testing.T, parent *xflags.Command, name string) bool {
+	t.Helper()
+
+	sub, _, err := parent.Find([]string{name})
+
+	return err == nil && sub != nil && sub.Name() == name
+}
+
 func TestNewRootCmd(t *testing.T) {
 	t.Run("root_cmd_structure", func(t *testing.T) {
-		cmd := NewRootCmd()
+		cmd, err := NewRootCmd()
+		require.NoError(t, err)
 
-		assert.Equal(t, "mqtt-forward", cmd.Use)
-		assert.True(t, cmd.SilenceUsage)
+		assert.Equal(t, "mqtt-forward", cmd.Name())
 	})
 
 	t.Run("has_subcommands", func(t *testing.T) {
-		cmd := NewRootCmd()
+		cmd, err := NewRootCmd()
+		require.NoError(t, err)
 
-		names := make([]string, 0, len(cmd.Commands()))
-		for _, sub := range cmd.Commands() {
-			names = append(names, sub.Use)
-		}
-
-		assert.Contains(t, names, "device")
-		assert.Contains(t, names, "client")
+		assert.True(t, hasSubcommand(t, cmd.Command, "device"))
+		assert.True(t, hasSubcommand(t, cmd.Command, "client"))
+		assert.True(t, hasSubcommand(t, cmd.Command, "gateway"))
 	})
 }
 
 func TestCommands(t *testing.T) {
 	t.Run("device_cmd_structure", func(t *testing.T) {
-		cmd := newDeviceCmd()
+		cmd := buildCmd(t, newDeviceCmd)
 
-		assert.Equal(t, "device", cmd.Use)
-
-		f := cmd.Flags().Lookup("device-id")
-		require.NotNil(t, f)
-		assert.Equal(t, "", f.DefValue)
-
-		f = cmd.Flags().Lookup("health-listen")
-		require.NotNil(t, f)
-		assert.Equal(t, "", f.DefValue)
+		assert.Equal(t, "device", cmd.Name())
+		assert.Contains(t, cmd.Help(), "device-id")
+		assert.Contains(t, cmd.Help(), "health-listen")
 	})
 
 	t.Run("client_cmd_structure", func(t *testing.T) {
-		cmd := newClientCmd()
+		cmd := buildCmd(t, newClientCmd)
 
-		assert.Equal(t, "client", cmd.Use)
-		assert.Len(t, cmd.Commands(), 6)
+		assert.Equal(t, "client", cmd.Name())
 
-		names := make([]string, 0, len(cmd.Commands()))
-		for _, sub := range cmd.Commands() {
-			names = append(names, sub.Name())
+		for _, name := range []string{"tcp", "socks5", "shell", "exec", "ping", "status"} {
+			assert.True(t, hasSubcommand(t, cmd, name), "missing subcommand %q", name)
 		}
-
-		assert.Contains(t, names, "tcp")
-		assert.Contains(t, names, "socks5")
-		assert.Contains(t, names, "shell")
-		assert.Contains(t, names, "exec")
-		assert.Contains(t, names, "ping")
-		assert.Contains(t, names, "status")
 	})
 
 	t.Run("tcp_cmd_flags", func(t *testing.T) {
-		cmd := newClientTCPCmd()
+		cmd := buildCmd(t, newClientTCPCmd)
 
-		assert.Equal(t, "tcp", cmd.Use)
-
-		f := cmd.Flags().Lookup("local")
-		require.NotNil(t, f)
-		assert.Equal(t, "L", f.Shorthand)
-
-		f = cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
+		assert.Equal(t, "tcp", cmd.Name())
+		assert.Contains(t, cmd.Help(), "--local")
+		assert.Contains(t, cmd.Help(), "-L")
+		assert.Contains(t, cmd.Help(), "--device")
 	})
 
 	t.Run("shell_cmd_flags", func(t *testing.T) {
-		cmd := newClientShellCmd()
+		cmd := buildCmd(t, newClientShellCmd)
 
-		assert.Equal(t, "shell", cmd.Use)
-
-		f := cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
+		assert.Equal(t, "shell", cmd.Name())
+		assert.Contains(t, cmd.Help(), "--device")
 	})
 
 	t.Run("socks5_cmd_flags", func(t *testing.T) {
-		cmd := newClientSOCKS5Cmd()
+		cmd := buildCmd(t, newClientSOCKS5Cmd)
 
-		assert.Equal(t, "socks5", cmd.Use)
-
-		f := cmd.Flags().Lookup("listen")
-		require.NotNil(t, f)
-		assert.Equal(t, ":1080", f.DefValue)
-
-		f = cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
+		assert.Equal(t, "socks5", cmd.Name())
+		assert.Contains(t, cmd.Help(), "--listen")
+		assert.Contains(t, cmd.Help(), ":1080")
+		assert.Contains(t, cmd.Help(), "--device")
 	})
 
 	t.Run("exec_cmd_flags", func(t *testing.T) {
-		cmd := newClientExecCmd()
+		cmd := buildCmd(t, newClientExecCmd)
 
-		assert.Contains(t, cmd.Use, "exec")
-
-		f := cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
+		assert.Equal(t, "exec", cmd.Name())
+		assert.Contains(t, cmd.Help(), "--device")
 	})
 
 	t.Run("ping_cmd_flags", func(t *testing.T) {
-		cmd := newClientPingCmd()
+		cmd := buildCmd(t, newClientPingCmd)
 
-		assert.Equal(t, "ping", cmd.Use)
-
-		f := cmd.Flags().Lookup("device")
-		require.NotNil(t, f)
-
-		f = cmd.Flags().Lookup("count")
-		require.NotNil(t, f)
-		assert.Equal(t, "4", f.DefValue)
-
-		f = cmd.Flags().Lookup("interval")
-		require.NotNil(t, f)
-		assert.Equal(t, "1s", f.DefValue)
+		assert.Equal(t, "ping", cmd.Name())
+		assert.Contains(t, cmd.Help(), "--device")
+		assert.Contains(t, cmd.Help(), "--count")
+		assert.Contains(t, cmd.Help(), "--interval")
 	})
 
 	t.Run("device_cmd_missing_device_id", func(t *testing.T) {
-		cmd := newDeviceCmd()
-		cmd.SetArgs([]string{})
+		setMockConnector(t)
 
-		err := cmd.Execute()
-		assert.Error(t, err)
+		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
+		defer cancel()
+
+		err := runCmd(ctx, t, newDeviceCmd)
+		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
 	t.Run("tcp_cmd_missing_required", func(t *testing.T) {
-		cmd := newClientTCPCmd()
-		cmd.SetArgs([]string{})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientTCPCmd)
 		assert.Error(t, err)
 	})
 
 	t.Run("shell_cmd_missing_required", func(t *testing.T) {
-		cmd := newClientShellCmd()
-		cmd.SetArgs([]string{})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientShellCmd)
 		assert.Error(t, err)
 	})
 
 	t.Run("ping_cmd_missing_required", func(t *testing.T) {
-		cmd := newClientPingCmd()
-		cmd.SetArgs([]string{})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientPingCmd)
 		assert.Error(t, err)
 	})
 
 	t.Run("socks5_cmd_missing_required", func(t *testing.T) {
-		cmd := newClientSOCKS5Cmd()
-		cmd.SetArgs([]string{})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientSOCKS5Cmd)
 		assert.Error(t, err)
 	})
 
 	t.Run("exec_cmd_missing_required", func(t *testing.T) {
-		cmd := newClientExecCmd()
-		cmd.SetArgs([]string{})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientExecCmd)
 		assert.Error(t, err)
 	})
 }
@@ -275,10 +261,7 @@ func TestCommandsRunE(t *testing.T) {
 	t.Run("device_connect_error", func(t *testing.T) {
 		setFailingConnector(t)
 
-		cmd := newDeviceCmd()
-		cmd.SetArgs([]string{"--device-id", "dev1"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newDeviceCmd, "--device-id", "dev1")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection refused")
 	})
@@ -286,10 +269,7 @@ func TestCommandsRunE(t *testing.T) {
 	t.Run("shell_connect_error", func(t *testing.T) {
 		setFailingConnector(t)
 
-		cmd := newClientShellCmd()
-		cmd.SetArgs([]string{"--device", "dev1"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientShellCmd, "--device", "dev1")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection refused")
 	})
@@ -297,10 +277,7 @@ func TestCommandsRunE(t *testing.T) {
 	t.Run("exec_connect_error", func(t *testing.T) {
 		setFailingConnector(t)
 
-		cmd := newClientExecCmd()
-		cmd.SetArgs([]string{"--device", "dev1", "--", "ls"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientExecCmd, "--device", "dev1", "--", "ls")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection refused")
 	})
@@ -308,10 +285,7 @@ func TestCommandsRunE(t *testing.T) {
 	t.Run("tcp_connect_error", func(t *testing.T) {
 		setFailingConnector(t)
 
-		cmd := newClientTCPCmd()
-		cmd.SetArgs([]string{"--device", "dev1", "-L", "8080:localhost:22"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientTCPCmd, "--device", "dev1", "-L", "8080:localhost:22")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection refused")
 	})
@@ -319,10 +293,7 @@ func TestCommandsRunE(t *testing.T) {
 	t.Run("shell_not_a_terminal", func(t *testing.T) {
 		setMockConnector(t)
 
-		cmd := newClientShellCmd()
-		cmd.SetArgs([]string{"--device", "dev1"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientShellCmd, "--device", "dev1")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not a terminal")
 	})
@@ -333,11 +304,7 @@ func TestCommandsRunE(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()
 
-		cmd := newClientExecCmd()
-		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--", "echo", "hi"})
-
-		err := cmd.Execute()
+		err := runCmd(ctx, t, newClientExecCmd, "--device", "dev1", "--", "echo", "hi")
 		assert.Error(t, err)
 	})
 
@@ -347,11 +314,7 @@ func TestCommandsRunE(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
 
-		cmd := newDeviceCmd()
-		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device-id", "dev1"})
-
-		err := cmd.Execute()
+		err := runCmd(ctx, t, newDeviceCmd, "--device-id", "dev1")
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
@@ -367,13 +330,9 @@ func TestCommandsRunE(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 		defer cancel()
 
-		cmd := newDeviceCmd()
-		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device-id", "dev1", "--health-listen", addr})
-
 		errCh := make(chan error, 1)
 		go func() {
-			errCh <- cmd.Execute()
+			errCh <- runCmd(ctx, t, newDeviceCmd, "--device-id", "dev1", "--health-listen", addr)
 		}()
 
 		var resp *http.Response
@@ -409,21 +368,14 @@ func TestCommandsRunE(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
 
-		cmd := newClientTCPCmd()
-		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "-L", "0:localhost:22"})
-
-		err := cmd.Execute()
+		err := runCmd(ctx, t, newClientTCPCmd, "--device", "dev1", "-L", "0:localhost:22")
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
 	t.Run("socks5_connect_error", func(t *testing.T) {
 		setFailingConnector(t)
 
-		cmd := newClientSOCKS5Cmd()
-		cmd.SetArgs([]string{"--device", "dev1"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientSOCKS5Cmd, "--device", "dev1")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection refused")
 	})
@@ -434,21 +386,14 @@ func TestCommandsRunE(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
 
-		cmd := newClientSOCKS5Cmd()
-		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--listen", ":0"})
-
-		err := cmd.Execute()
+		err := runCmd(ctx, t, newClientSOCKS5Cmd, "--device", "dev1", "--listen", ":0")
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
 	t.Run("ping_connect_error", func(t *testing.T) {
 		setFailingConnector(t)
 
-		cmd := newClientPingCmd()
-		cmd.SetArgs([]string{"--device", "dev1"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newClientPingCmd, "--device", "dev1")
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "connection refused")
 	})
@@ -459,63 +404,69 @@ func TestCommandsRunE(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 		defer cancel()
 
-		cmd := newClientPingCmd()
-		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--device", "dev1", "--count", "1"})
+		err := runCmd(ctx, t, newClientPingCmd, "--device", "dev1", "--count", "1")
+		assert.NoError(t, err)
+	})
 
-		err := cmd.Execute()
+	t.Run("exec_requires_command", func(t *testing.T) {
+		setMockConnector(t)
+
+		err := runCmd(context.Background(), t, newClientExecCmd, "--device", "dev1")
+		assert.ErrorContains(t, err, "exec requires a command")
+	})
+
+	t.Run("status_connect_error", func(t *testing.T) {
+		setFailingConnector(t)
+
+		err := runCmd(context.Background(), t, newClientStatusCmd)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "connection refused")
+	})
+
+	t.Run("status_with_mock_transport", func(t *testing.T) {
+		setMockConnector(t)
+
+		ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+		defer cancel()
+
+		err := runCmd(ctx, t, newClientStatusCmd)
 		assert.NoError(t, err)
 	})
 }
 
 func TestGatewayCmd(t *testing.T) {
 	t.Run("structure", func(t *testing.T) {
-		cmd := newGatewayCmd()
+		cmd := buildCmd(t, newGatewayCmd)
 
-		assert.Equal(t, "gateway", cmd.Use)
-
-		f := cmd.Flags().Lookup("route")
-		require.NotNil(t, f)
+		assert.Equal(t, "gateway", cmd.Name())
+		assert.Contains(t, cmd.Help(), "--route")
 	})
 
 	t.Run("registered_on_root", func(t *testing.T) {
-		cmd := NewRootCmd()
+		cmd, err := NewRootCmd()
+		require.NoError(t, err)
 
-		names := make([]string, 0, len(cmd.Commands()))
-		for _, sub := range cmd.Commands() {
-			names = append(names, sub.Use)
-		}
-
-		assert.Contains(t, names, "gateway")
+		assert.True(t, hasSubcommand(t, cmd.Command, "gateway"))
 	})
 
 	t.Run("no_routes_error", func(t *testing.T) {
 		setMockConnector(t)
 
-		cmd := newGatewayCmd()
-		cmd.SetArgs([]string{})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newGatewayCmd)
 		assert.ErrorContains(t, err, "no routes")
 	})
 
 	t.Run("invalid_route_flag", func(t *testing.T) {
 		setMockConnector(t)
 
-		cmd := newGatewayCmd()
-		cmd.SetArgs([]string{"--route", "device=a,listen=:8001"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newGatewayCmd, "--route", "device=a,listen=:8001")
 		assert.ErrorContains(t, err, "missing target")
 	})
 
 	t.Run("connect_error", func(t *testing.T) {
 		setFailingConnector(t)
 
-		cmd := newGatewayCmd()
-		cmd.SetArgs([]string{"--route", "device=a,listen=127.0.0.1:0,target=backend:80"})
-
-		err := cmd.Execute()
+		err := runCmd(context.Background(), t, newGatewayCmd, "--route", "device=a,listen=127.0.0.1:0,target=backend:80")
 		assert.ErrorContains(t, err, "connection refused")
 	})
 
@@ -531,11 +482,7 @@ func TestGatewayCmd(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 		defer cancel()
 
-		cmd := newGatewayCmd()
-		cmd.SetContext(ctx)
-		cmd.SetArgs([]string{"--route", fmt.Sprintf("device=a,listen=%s,target=backend:80", addr)})
-
-		err = cmd.Execute()
+		err = runCmd(ctx, t, newGatewayCmd, "--route", fmt.Sprintf("device=a,listen=%s,target=backend:80", addr))
 		assert.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 }

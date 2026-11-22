@@ -41,7 +41,7 @@ type ExecSessionConfig struct {
 }
 
 func NewExecSession(cfg ExecSessionConfig) *ExecSession {
-	fc := NewFlowControl(FlowControlWindow)
+	fc := NewFlowControl(uint64(FlowControlWindow))
 
 	return &ExecSession{
 		id:           cfg.ID,
@@ -258,7 +258,7 @@ func NewExecClientSession(id string, transport Transport, logger *slog.Logger) *
 		transport: transport,
 		logger:    logger,
 		reorder:   NewReorderBuffer(ReorderBufSize),
-		fc:        NewFlowControl(FlowControlWindow),
+		fc:        NewFlowControl(uint64(FlowControlWindow)),
 		done:      make(chan struct{}),
 	}
 }
