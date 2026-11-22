@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.14.0](https://github.com/vitalvas/mqtt-forward/compare/v0.13.0...v0.14.0) (2026-11-22)
+
+
+### Features
+
+* migrate to go.vitalvas.com namespace and Go 1.27 ([9f79300](https://github.com/vitalvas/mqtt-forward/commit/9f79300499f89bf98330839ce04c83610a5495ec))
+* replace cobra with xflags and type all constants ([998550d](https://github.com/vitalvas/mqtt-forward/commit/998550da2c0b3e06fdac2179eb6f0a05544efefa))
+* unify artifact upload into one step ([7a541aa](https://github.com/vitalvas/mqtt-forward/commit/7a541aa38163059e6ad8c7673c1a541cea72d0b3))
+* upload release and snapshot artifacts to storage ([b010789](https://github.com/vitalvas/mqtt-forward/commit/b01078913ffd4cb2c9d75345a3ba0705289d166c))
+
+
+### Bug Fixes
+
+* update release job ([63128e2](https://github.com/vitalvas/mqtt-forward/commit/63128e2c6d08d35a59f0102e7582b475f87b6a9c))
+* upload archives instead of raw binaries ([4bf96aa](https://github.com/vitalvas/mqtt-forward/commit/4bf96aa18f9e8daf664267dd1f758a49e806a0cd))
+
 ## [0.13.0](https://github.com/vitalvas/mqtt-forward/compare/v0.12.0...v0.13.0) (2026-09-29)
 
 
